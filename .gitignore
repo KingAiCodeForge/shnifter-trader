@@ -131,3 +131,24 @@ cython_debug/
 shnifter_log.txt
 shnifter_setup_log.txt
 pytest_output.txt
+# Tests (local only)
+test_*.py
+tests/
+shnifter_test_report.html
+
+# IDE workspace files
+*.code-workspace
+
+# JSON reports (generated)
+*_report.json
+*_discovery_report.json
+*_validation_report.json
+
+# Notebooks (local development)
+*.ipynb
+*.ipynb
+
+# Backup/copy files
+*copy.md
+*copy.py
+

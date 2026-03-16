@@ -357,6 +357,11 @@ class EnterpriseParametersPopout(QDialog):
         self.live_mode_cb.stateChanged.connect(self.on_parameters_changed)
         self.update_interval_spin.valueChanged.connect(self.on_parameters_changed)
         
+        # Connect Apply button to emit parameters_changed
+        self.apply_btn.clicked.connect(lambda: self.parameters_changed.emit(self.current_params))
+        # Connect other UI elements to update current_params and emit parameters_changed as needed
+        # Example: connect date/time edits, checkboxes, etc. here for live updates if desired
+        
     def set_date_range(self, days=None, hours=None):
         """Set date range based on relative time"""
         end_time = datetime.now()
