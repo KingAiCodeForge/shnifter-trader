@@ -82,6 +82,8 @@ def build_parser() -> argparse.ArgumentParser:
     # Second read-only action: historical replay, no simulated/live account writes.
     from shnifter_backtest_cli import register_backtest
     register_backtest(groups.add_parser("backtest", help="Deterministic historical strategy replay"))
+    from shnifter_agent_cli import register_actions
+    register_actions(groups)
     return parser
 
 
@@ -197,6 +199,9 @@ def main(
     if args.group == "backtest":
         from shnifter_backtest_cli import execute_backtest
         return execute_backtest(args, stdout=out, stderr=err)
+    if args.group in ("analysis", "actions"):
+        from shnifter_agent_cli import run_action
+        return run_action(args, stdout=out, stderr=err)
 
     if args.start >= args.end:
         print("error: --start must be earlier than --end (end is exclusive)", file=err)
