@@ -251,3 +251,22 @@ independently permissioned component.
 **Validation:** Local synthetic tests cover CLI, HTTP authentication, signal
 logic and the replay dispatcher. Full GUI, installed-wheel and MCP SDK host
 integration tests are not yet complete. Profitability is unproven.
+
+
+## Opt-in research experiment registry
+
+Historical backtests can now be preserved in a **separate local SQLite**
+database with complete bar snapshots, full replay results, SHA256 content
+hashes and a stable experiment ID. Recording is optional:
+
+```bash
+python shnifter_cli.py backtest run --csv historical_daily.csv --ticker AAPL --registry-db research_experiments.sqlite
+python shnifter_cli.py experiments list --registry-db research_experiments.sqlite
+python shnifter_cli.py experiments verify --registry-db research_experiments.sqlite --id YOUR_EXPERIMENT_SHA256
+```
+
+The backtest is still read-only by default; `--registry-db` is an explicit local
+file write. Saved results are recomputed from the stored daily OHLCV history
+and can be checked for accidental changes. **This does not validate the data
+feed or guarantee any returns.** See
+[Experiment Registry](docs/EXPERIMENT_REGISTRY_2026-10-17.md).
