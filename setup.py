@@ -2,7 +2,7 @@
 Setup script for Shnifter Trader
 """
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, find_namespace_packages
 from pathlib import Path
 
 # Read the contents of README file
@@ -18,7 +18,12 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/shnifter/trader",
-    packages=find_packages(),
+    # Historical data modules are PEP 420 namespace packages (no __init__.py).
+    # Include them in installed distributions, not only source checkouts.
+    packages=sorted(set(find_packages() + find_namespace_packages(
+        include=["core", "core.*", "providers", "providers.*", "shnifterBB", "shnifterBB.*"]
+    ))),
+    py_modules=["shnifter_cli"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Financial and Insurance Industry",
@@ -76,7 +81,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "shnifter-trader=Multi_Model_Trading_Bot:main",
+            "shnifter-trader=shnifter_cli:main",
         ],
     },
     include_package_data=True,
