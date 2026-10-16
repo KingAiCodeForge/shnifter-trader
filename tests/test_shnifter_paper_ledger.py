@@ -115,6 +115,16 @@ class TestPaperLedger(unittest.TestCase):
             PaperLedger(self.path, policy=unsafe)
         self.assertEqual(self.ledger.status()['fill_count'],1)
 
+    def test_open_existing_reuses_custom_stored_risk_policy(self):
+        path=Path(self.tmp.name)/'custom.sqlite'
+        original=PaperLedger(path, PaperPolicy(initial_cash=Decimal('1000'),
+                                               max_position_pct=Decimal('.10')))
+        reopened=PaperLedger.open_existing(path)
+        self.assertEqual(reopened.status()['initial_cash'],1000)
+        self.assertEqual(reopened.policy.max_position_pct, Decimal('.10'))
+        with self.assertRaises(FileNotFoundError):
+            PaperLedger.open_existing(Path(self.tmp.name)/'missing.sqlite')
+
     def test_validation_refuses_invalid_inputs_and_legacy_db(self):
         for kwargs in [{'quantity':0}, {'price':-1}, {'side':'SHORT'},
                        {'source_at':'2026-10-17T03:00:00'}, {'ticker':'../tmp'}]:
