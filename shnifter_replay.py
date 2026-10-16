@@ -9,10 +9,9 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
-import math
 from dataclasses import asdict, dataclass
 from datetime import date
-from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Iterable, Mapping
 
