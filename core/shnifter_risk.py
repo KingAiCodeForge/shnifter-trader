@@ -6,11 +6,12 @@ helper; it is not a complete production broker pre-trade risk controller.
 from __future__ import annotations
 
 import math
+from numbers import Real
 
 
 def _finite_positive(value) -> bool:
     """Reject bools and non-numeric/unbounded values for risk accounting."""
-    return type(value) in (int, float) and math.isfinite(value) and value > 0
+    return isinstance(value, Real) and not isinstance(value, bool) and math.isfinite(value) and value > 0
 
 
 def calculate_position_size(confidence, balance, risk_per_trade=0.01, kelly_fraction=1.0):
@@ -32,7 +33,7 @@ def size_from_stop_distance(*, capital, entry_price, stop_price,
     Not guaranteed: stop fills can gap, slip or be rejected. Long-only.
     """
     inputs = (capital, entry_price, stop_price, max_risk_fraction, max_position_fraction)
-    if not all(type(x) in (int, float) and math.isfinite(x) for x in inputs):
+    if not all(isinstance(x, Real) and not isinstance(x, bool) and math.isfinite(x) for x in inputs):
         raise ValueError("risk inputs must be finite numbers")
     if capital <= 0 or entry_price <= 0 or not (0 < stop_price < entry_price):
         raise ValueError("require positive capital, entry and lower long stop")
@@ -84,10 +85,10 @@ def get_portfolio_heat(portfolio, price_lookup):
 def check_drawdown(portfolio, max_drawdown=0.2):
     """Return True when drawdown violates the threshold OR data is invalid."""
     actual = getattr(portfolio, "max_drawdown", None)
-    if not (type(actual) in (int, float) and math.isfinite(actual)
+    if not (isinstance(actual, Real) and not isinstance(actual, bool) and math.isfinite(actual)
             and 0 <= actual <= 1):
         return True
-    if not (type(max_drawdown) in (int, float) and math.isfinite(max_drawdown)
+    if not (isinstance(max_drawdown, Real) and not isinstance(max_drawdown, bool) and math.isfinite(max_drawdown)
             and 0 < max_drawdown <= 1):
         return True
     return actual >= max_drawdown
