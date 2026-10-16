@@ -23,6 +23,14 @@ def build_server():
         return invoke_action("actions.list")
 
     @server.tool()
+    def shnifter_market_historical(ticker: str, start: str, end: str,
+                                   limit: int = 100) -> dict[str, Any]:
+        """Read bounded historical daily OHLCV (inclusive start, exclusive end)."""
+        return invoke_action("market.historical", {
+            "ticker": ticker, "start": start, "end": end, "limit": limit,
+        })
+
+    @server.tool()
     def shnifter_analysis_signals(ticker: str, rows: list[dict[str, Any]],
                                   fast: int = 20, slow: int = 50,
                                   min_labeled: int = 80) -> dict[str, Any]:
