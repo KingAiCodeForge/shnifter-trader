@@ -39,7 +39,8 @@ of profit or allocation instruction.
 python -m uvicorn shnifter_agent_api:app --host 127.0.0.1 --port 8766
 ```
 
-`GET /v1/actions` and `POST /v1/actions/analysis.signals` use JSON.
+`GET /v1/actions`, `POST /v1/actions/market.historical`, and
+`POST /v1/actions/analysis.signals` use JSON.
 Example body:
 
 ```json
@@ -68,8 +69,11 @@ python shnifter_agent_mcp.py
 The command expects a compatible MCP host to supply protocol messages over
 stdio. Configure Claude Desktop/Codex to launch the project's Python
 interpreter with this file as the argument. MCP tools include
-`shnifter_capabilities`, `shnifter_analysis_signals` and
-`shnifter_backtest_replay`. None exposes a broker.
+`shnifter_capabilities`, `shnifter_market_historical`,
+`shnifter_analysis_signals` and `shnifter_backtest_replay`.
+`shnifter_market_historical` performs a read-only network fetch through
+ShnifterBB/yfinance; all other registered tools operate on supplied data.
+None exposes a broker.
 
 Official SDK: https://py.sdk.modelcontextprotocol.io/
 The v2 SDK was used as the reference, but a complete MCP host handshake and
@@ -97,3 +101,11 @@ SDK runtime test has **not** yet been performed on this review branch.
    broker or modify risk policy.
 5. Add broker adapter only after idempotent fills, restart reconciliation,
    account snapshots, permissions and kill-switch tests are complete.
+
+## Verified local test scope
+
+42 Python 3.13 offline unittest cases passed in a focused working folder
+(earlier CLI/history, replay, new action adapters and risk sizing). The
+MCP adapter's registered tools were checked with an injected fake SDK;
+actual MCP v2 hosting/handshake remains unverified. The tests use synthetic
+bars and mock network fetching; they do not demonstrate market alpha.
