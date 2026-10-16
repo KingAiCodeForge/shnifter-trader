@@ -273,9 +273,24 @@ class BacktestWorker(QThread):
         try:
             for ticker in self.tickers:
                 for provider in self.providers:
-                    pnl, win_rate, trades = self.simulate_backtest(ticker, provider)
-                    result_msg = f"Backtest for {ticker} ({provider}): PnL={pnl:.2f}, Win Rate={win_rate:.1f}%, Trades={trades}"
-                    EventLog.emit("INFO", result_msg)
+                    try:
+                        report = self.simulate_backtest(ticker, provider)
+                        win_rate = report['win_rate_pct']
+                        win_rate_text = (f"{win_rate:.1f}%" if win_rate is not None
+                                         else "N/A (no completed trades)")
+                        result_msg = (
+                            f"Backtest {ticker} ({provider}): "
+                            f"Ending equity={report['final_equity']:.2f}, "
+                            f"Realised P&L={report['realised_pnl']:.2f}, "
+                            f"Unrealised P&L={report['unrealised_pnl']:.2f}, "
+                            f"Win rate={win_rate_text}, "
+                            f"Completed trades={report['completed_trades']}, "
+                            f"Run ID={report['run_id']}"
+                        )
+                        EventLog.emit("INFO", result_msg)
+                    except Exception as exc:
+                        result_msg = f"Backtest {ticker} ({provider}) FAILED: {exc}"
+                        EventLog.emit("ERROR", result_msg)
                     results_log.append(result_msg)
             EventLog.emit("INFO", "Background backtest completed.")
             self.backtest_finished_signal.emit(results_log)
@@ -286,18 +301,20 @@ class BacktestWorker(QThread):
             self.backtest_finished_signal.emit(results_log)
 
     def simulate_backtest(self, ticker, provider):
-        # Remove provider parameter since ShnifterBB doesn't support it for historical data
-        # Add required start_date and end_date parameters
+        """Run an auditable replay; never invent strategy results.
+
+        Historical SMA decisions execute at the NEXT bar's open with simulated
+        adverse slippage, fees and conservative intrabar stops. No broker used.
+        """
+        if provider != 'yfinance':
+            raise ValueError(f"Price provider {provider!r} is not implemented")
+        from shnifter_replay import from_dataframe, run_replay
         end_date = datetime.now().strftime('%Y-%m-%d')
         start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-        historical_data = self.shnifter.equity.price.historical(ticker, start_date=start_date, end_date=end_date)
-        if historical_data.to_df().empty:
-            return 0.0, 0.0, 0
-        pnl = np.random.uniform(-10.0, 20.0) * len(historical_data.to_df()) / 100
-        win_rate = np.random.uniform(40.0, 65.0)
-        trades = np.random.randint(50, 150)
-        time.sleep(2)  # Simulate a long-running task
-        return pnl, win_rate, trades
+        history = self.shnifter.equity.price.historical(
+            ticker, start_date=start_date, end_date=end_date
+        )
+        return run_replay(from_dataframe(history.to_df()), ticker=ticker)
 
 class MainWindow(QMainWindow):
     def __init__(self):
