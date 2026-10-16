@@ -23,7 +23,9 @@ setup(
     packages=sorted(set(find_packages() + find_namespace_packages(
         include=["core", "core.*", "providers", "providers.*", "shnifterBB", "shnifterBB.*"]
     ))),
-    py_modules=["shnifter_cli", "shnifter_replay", "shnifter_backtest_cli"],
+    py_modules=["shnifter_cli", "shnifter_replay", "shnifter_backtest_cli",
+                "shnifter_analysis_core", "shnifter_actions", "shnifter_agent_cli",
+                "shnifter_agent_api", "shnifter_agent_mcp"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Financial and Insurance Industry",
@@ -59,6 +61,7 @@ setup(
         "dash>=2.18.0",
     ],
     extras_require={
+        "agents": ["mcp>=2,<3"],
         "dev": [
             "pytest>=7.4.0",
             "black>=23.12.0",
