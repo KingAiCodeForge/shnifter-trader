@@ -156,6 +156,27 @@ class CLIAndHTTPTests(unittest.TestCase):
         self.assertEqual(rc,0,err.getvalue())
         self.assertTrue(json.loads(dest.read_text())['ok'])
 
+    def test_mcp_adapter_exposes_only_readonly_tools(self):
+        import sys, types
+        from shnifter_agent_mcp import build_server
+        class FakeServer:
+            def __init__(self, name):
+                self.name=name; self.tools={}
+            def tool(self):
+                def deco(fn): self.tools[fn.__name__]=fn; return fn
+                return deco
+        package=types.ModuleType('mcp')
+        submodule=types.ModuleType('mcp.server')
+        submodule.MCPServer=FakeServer
+        with patch.dict(sys.modules, {'mcp':package,'mcp.server':submodule}):
+            adapter=build_server()
+        self.assertEqual(set(adapter.tools), {
+            'shnifter_capabilities', 'shnifter_market_historical',
+            'shnifter_analysis_signals', 'shnifter_backtest_replay',
+        })
+        self.assertEqual(adapter.tools['shnifter_capabilities']()['actions'][0]['name'], 'actions.list')
+        self.assertEqual(adapter.tools['shnifter_analysis_signals']('AAPL',self.rows)['result']['ticker'],'AAPL')
+
     def test_api_denies_untrusted_unauthenticated_clients(self):
         from fastapi.testclient import TestClient
         from shnifter_agent_api import app
