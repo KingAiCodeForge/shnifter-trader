@@ -155,3 +155,86 @@ Source references:
 - `shnifter_replay.py` on the review branch is a useful deterministic single-asset SMA baseline but not yet a multi-asset, dividend/corporate-action aware, point-in-time execution engine.
 
 **Research deliverable only** — no trader/live broker execution code or historical performance claim has been produced by this document.
+
+
+## 9. Further 2026 evidence and implementable open-source references
+
+### Live agent capability ≠ reliably profitable returns
+
+- **AI-Trader** (Fan et al., Dec 2025) benchmarks multiple autonomous LLMs across U.S. stocks, A-shares and crypto; many agents had weak returns and risk management. Do not equate agent autonomy or model IQ with an investable edge.
+  - https://arxiv.org/abs/2512.10971
+- **Agentic Trading** (Xia et al., May 2026) surveyed 77 studies; in 19 closed-loop empirical studies, only 2 exposed time-consistent split protocols, 1 documented transaction costs, 1 dealt with universe/survivorship and none met their R3 reproducibility standard.
+  - https://arxiv.org/abs/2605.19337
+- **Sealed Joint Search / Agora** (Li et al., June 2026) reports a promising 91-day holdout after a research-agent system evolved factor and evaluator libraries, but authors note a single seed, short-biased concentration, and a limited holdout. Treat this as a *research mechanism worth replicating*, not proof of a durable live trading edge.
+  - https://arxiv.org/abs/2606.29194
+- **Multiplicity-aware evaluation of DRL** (2026) finds substantial Sharpe dispersion across random seeds; apparent algorithm superiority can disappear once multiple comparisons are accounted for.
+  - https://doi.org/10.1016/j.jfds.2026.100205
+
+### Existing tools to adapt, not blindly copy
+
+- **Microsoft Qlib + RD-Agent**: experiment orchestration, automated factor mining, rolling model workflows and quant evaluation. Study adapters, research metadata and evaluation procedures; benchmark against Shnifter's own simpler pipelines.
+  - https://github.com/microsoft/qlib
+  - https://github.com/microsoft/RD-Agent
+- **AlphaGen**: constrained symbolic formula mining, RL-generated factor expressions and genetic-programming baselines, including adaptations to Qlib.
+  - https://github.com/ICT-FinD-Lab/alphagen
+- **TradingAgents**: LangGraph-like multi-agent financial research, provenance and persistent decisions. Its own documentation says results vary and the framework is for research rather than guaranteed returns. The original authors are affiliated with UCLA and MIT, but it is not an officially endorsed hedge fund.
+  - https://github.com/TauricResearch/TradingAgents
+  - https://tradingagents-ai.github.io/
+- **IBKR native algorithms**: Arrival Price / VWAP / TWAP / Percentage of Volume are broker-side features. For a small daily equity portfolio, prioritise correct order reconciliation and real spread/cost measurement before custom neural execution scheduling.
+  - https://www.interactivebrokers.com/docs/general/order-types/algorithmic-orders/ib-algorithms/arrival-price
+
+## 10. Shnifter self-evolution protocol (research sandbox, not autonomous broker modification)
+
+### Boundary rules
+
+1. **Author:** an LLM or genetic search proposes a typed formula/feature *specification*, tagged with prompt/model/version/source timestamps. It does not produce executable order-routing code.
+2. **Compile in isolation:** the candidate may use only allowlisted arithmetic, lags and rolling transforms. No filesystem, shell, imports, network, broker SDK, API secrets, dynamic eval/exec or database write permissions. Reject malformed, expensive or data-leaking expressions before running.
+3. **Register every attempt:** append an immutable entry with strategy digest, formula, parameters, data snapshot digest, feature availability cutoff, universe definition, trial ordinal, tests and code version. **Never record just the winners.**
+4. **Train / validate:** run rolling forward research sets, purge overlapping outcome windows, account for data vendor publication latency, delistings, corporate actions, spreads and commissions. Test simple baselines under identical calendars.
+5. **Use one sealed evaluator:** strategy authors cannot read or mutate final holdout labels, performance queries or acceptance conditions. If a held-out result influences later candidate generation, that dataset is no longer independent.
+6. **Statistical gate:** preserve failed variants, use multiple-comparison awareness (DSR/PBO as suitable), require robustness to nearby parameter perturbations and trading-cost stress, measure net returns and uncertainty, not simulated gross profit.
+7. **Shadow mode:** run multiple variants without placing orders. Record what each *would* have decided at each historical clock time. Model-selection weights and rewards update only when the relevant outcome window has fully elapsed.
+8. **Paper approval:** a signed, versioned strategy artifact can enter the paper execution service, **not a live broker**, after passing fixed risk checks and evaluation policy.
+9. **Live approval (later):** require deliberate human authorization to change an active live model version, with deployment rollback, broker reconciliation, per-instrument limits and separate permissions for research vs brokerage. Strategies may be autonomous within a preapproved deployed release; agents cannot directly increase limits or self-modify broker code.
+
+### Why this constraint matters
+
+Running hundreds of candidate models through a mutable evaluator tends to select bugs in the evaluator, survivorship leakage, and unmodelled transaction-cost assumptions. The real innovation is independently sealed evaluation and a complete trial history, not unbounded self-writing logic.
+
+LLM-retrieved news and webpages are **untrusted data**, not instructions. Treat potential prompt injections as malicious inputs; retrieved text must not be allowed to request tools, alter risk parameters, leak account credentials, or approve a trade.
+- https://openai.com/index/prompt-injections/
+
+### Fixed evidence schema for a candidate
+
+\`\`\`json
+{
+  "candidate_id": "sha256-of-canonical-research-spec",
+  "candidate_version": "immutable-version",
+  "strategy_family": "time-series-momentum",
+  "hypothesis": "testable statement, including horizon",
+  "feature_spec": "typed and allowlisted operators only",
+  "data_snapshot_sha256": "content-addressed-dataset",
+  "instrument_universe_asof": "timestamp and membership reference",
+  "publication_available_at": "earliest usable time",
+  "train_range": "date interval",
+  "validation_range": "date interval",
+  "sealed_test_ref": "opaque reference; not directly readable by candidate author",
+  "trial_number": 1,
+  "benchmark_id": "benchmark-spec-digest",
+  "risk_policy_hash": "immutable-bounds-digest",
+  "research_state": "PROPOSED"
+}
+\`\`\`
+
+The sample IDs are placeholders. This is a schema proposal, not a running registry or proof of valid alpha.
+
+## 11. What "better than expected" would actually mean
+
+- Shnifter can replay the *same research artifact* twice with identical decisions and audit outputs.
+- It can say **NO TRADE** when projected net advantage is insufficient or current data has expired.
+- It cannot accidentally train on data published after its decision timestamp.
+- It can attribute realised or paper-simulated performance to the exact candidate, model, data and policy revision, including failures.
+- It demonstrates better *out-of-sample net performance/risk* than buy-and-hold, cash, and fixed strategies under the same constraints in enough observations to estimate uncertainty.
+- A corrupt feed, duplicate webhook, crashed instance or disconnected broker never bypasses the risk or reconciliation barrier.
+
+**Not yet implemented here:** candidate compiler, event-sourced ledger, sealed evaluation runner, independent statistics, broker live execution and an autonomous optimizer. These must be separate reviewed engineering increments.
