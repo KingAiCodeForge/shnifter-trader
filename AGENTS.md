@@ -34,3 +34,16 @@ When adding a feature, implement it once in a pure service, then provide small
 CLI/MCP/API/GUI adapters where applicable. Register only safe capabilities in
 `shnifter_actions.py`. Distinguish running/tested functionality from stubs.
 Avoid embedding UI, network I/O, secrets, or broker operations in signal math.
+
+
+## Experiment registry for coding agents
+
+- Explicit opt-in save: `python shnifter_cli.py backtest run --csv prices.csv --ticker AAPL --registry-db experiments.sqlite`.
+- Read-only listings: `python shnifter_cli.py experiments list --registry-db experiments.sqlite`.
+- Verify saved input/output hashes and deterministic replay: `python shnifter_cli.py experiments verify --registry-db experiments.sqlite --id <sha256>`.
+- Never pass the trading portfolio SQLite database as a research registry.
+- Agent-accessible MCP/REST actions remain read-only. File recording is
+  **not** a currently registered MCP or REST action.
+- The recorded data source description is unverified metadata, not proof of
+  historical point-in-time availability. Recorded experiments are research
+  artifacts, not live trading results.
