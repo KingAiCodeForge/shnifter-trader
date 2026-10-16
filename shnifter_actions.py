@@ -40,12 +40,12 @@ def _strict_params(name: str, args: Any, accepted: set[str], required: set[str])
     unknown = set(args) - accepted
     missing = required - set(args)
     if unknown or missing:
-        raise ValueError(f"invalid {name} parameters: unknown={sorted(unknown)}, missing={sorted(missing)}")
+        raise ValueError(f"invalid {name} parameters: unknown={sorted(map(str, unknown))}, missing={sorted(missing)}")
 
 
 def invoke_action(name: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Invoke a whitelisted research-only operation. Fail closed by default."""
-    if name not in _ACTION_MAP:
+    if type(name) is not str or name not in _ACTION_MAP:
         raise ValueError("unsupported read-only action; consult actions.list")
     params = {} if params is None else params
     if name == "actions.list":
@@ -54,6 +54,9 @@ def invoke_action(name: str, params: dict[str, Any] | None = None) -> dict[str, 
     if name == "market.historical":
         _strict_params(name, params, {"ticker", "start", "end", "limit"},
                        {"ticker", "start", "end"})
+        for field in ("ticker", "start", "end"):
+            if type(params[field]) is not str:
+                raise ValueError(f"market {field} must be a string")
         from argparse import ArgumentTypeError
         from shnifter_cli import _ticker, _iso_date, _fetch_historical, _records_from_frame
         try:
@@ -73,6 +76,13 @@ def invoke_action(name: str, params: dict[str, Any] | None = None) -> dict[str, 
     if name == "analysis.signals":
         keys = {"ticker", "rows", "fast", "slow", "min_labeled", "use_ml"}
         _strict_params(name, params, keys, {"ticker", "rows"})
+        if type(params["ticker"]) is not str:
+            raise ValueError("analysis ticker must be a string")
+        for field in ("fast", "slow", "min_labeled"):
+            if field in params and type(params[field]) is not int:
+                raise ValueError(f"analysis {field} must be an integer")
+        if "use_ml" in params and type(params["use_ml"]) is not bool:
+            raise ValueError("analysis use_ml must be a boolean")
         from shnifter_analysis_core import evaluate_signals
         import pandas as pd
         bars = _make_bars(params["rows"])
@@ -86,6 +96,9 @@ def invoke_action(name: str, params: dict[str, Any] | None = None) -> dict[str, 
         keys = {"ticker", "rows", "fast", "slow", "initial_cash", "max_position_pct",
                 "stop_loss_pct", "take_profit_pct", "max_drawdown_pct", "fee_bps", "slippage_bps"}
         _strict_params(name, params, keys, {"ticker", "rows"})
+        for field in ("fast", "slow"):
+            if field in params and type(params[field]) is not int:
+                raise ValueError(f"backtest {field} must be an integer")
         from shnifter_replay import ReplayConfig, run_replay
         import re
         ticker = params["ticker"]
