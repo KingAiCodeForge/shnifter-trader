@@ -23,7 +23,7 @@ setup(
     packages=sorted(set(find_packages() + find_namespace_packages(
         include=["core", "core.*", "providers", "providers.*", "shnifterBB", "shnifterBB.*"]
     ))),
-    py_modules=["shnifter_cli"],
+    py_modules=["shnifter_cli", "shnifter_replay", "shnifter_backtest_cli"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Financial and Insurance Industry",
