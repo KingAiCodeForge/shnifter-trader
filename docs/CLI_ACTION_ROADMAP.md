@@ -13,7 +13,7 @@ silently expose GUI callbacks as CLI commands.
 | 1 | market historical | **Implemented on review branch**: read-only, yfinance via ShnifterBB, JSON/CSV, date/symbol validation, tests |
 | 2 | market news | **Not implemented**: validate upstream article schemas, published time and source URLs; no fabricated news |
 | 3 | analysis signals | **Not implemented**: extract GUI-bound trend/ML/sentiment methods into one pure headless service; separate evidence from decisions |
-| 4 | backtest run | **Blocked**: remove random P&L/win-rate/trade figures in BacktestWorker; implement causal replay, fees and slippage |
+| 4 | backtest run | **Implemented in review branch**: GUI/CLI use deterministic next-open daily SMA replay with costs, audit trail and risk halt; still needs real-market smoke testing |
 | 5 | paper ledger | **Blocked**: migrate SQLite safely; durable IDs for signals, orders, executions and trades; close by trade ID |
 | 6 | risk check | **Blocked**: deterministic exposure/position/drawdown/stale-data/duplicate checks independent of AI |
 | 7 | paper cycle | **Blocked**: recoverable scheduled scan -> signal -> risk -> simulated fill -> ledger -> report; default dry-run |
@@ -31,9 +31,9 @@ that currently exist.
   the GUI falls back to 0.5 while the simulated-trade path requires >0.6.
   Decide whether to emit evidence-based confidence or remove the gate; do not
   arbitrarily raise confidence.
-- Multi_Model_Trading_Bot.py: BacktestWorker currently uses
-  np.random.uniform / np.random.randint to produce simulated results.
-  Replace this before judging strategy performance.
+- Multi_Model_Trading_Bot.py: BacktestWorker previously generated random
+  P&L/win-rate/trade metrics; review branch replaces this with Shnifter replay.
+  This does not validate that the strategy makes money.
 - Multi_Model_Trading_Bot.py: GUI model-performance values are derived
   from confidence rather than measured out-of-sample outcomes.
 - core/shnifter_data_manager.py: review SQL writes/updates and reconciliation
@@ -59,8 +59,9 @@ that currently exist.
 
 ## Next engineering target
 
-After the read-only history action: create a pure, GUI-independent strategy
-service and fix the data/ledger defects. Build a reproducible, offline
-**paper-only** market replay with a deterministic event and fill ledger.
-Only then add scheduled autonomous paper cycles and optional LLM research.
+After the historical read and deterministic replay actions: repair the
+**paper-only** ledger and position identifiers. Introduce a separately tested
+SQLite store with atomic idempotent signals/fills and failure-safe risk gates.
+Then wire scheduled autonomous paper cycles and optional LLM research.
+Do not call a historical backtest a production-ready automated trader.
 Profitability is an empirical result, never a feature assertion.
