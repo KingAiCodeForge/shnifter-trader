@@ -1,35 +1,38 @@
-from core.shnifter_trade import Trade, Portfolio
+"""Deterministic risk estimates for simulated Shnifter portfolios.
 
-# Model/LLM confidence is NOT a calibrated probability of profit.
-# The legacy API keeps its signature but deliberately ignores confidence and
-# Kelly parameters. All live allocation must use independent risk limits.
+Unknown exposure must never be represented as zero. This module is a research
+helper; it is not a complete production broker pre-trade risk controller.
+"""
+from __future__ import annotations
+
 import math
 
 
-def calculate_position_size(confidence, balance, risk_per_trade=0.01, kelly_fraction=1.0):
-    """Return a strictly bounded cash risk budget, never LLM-weighted.
+def _finite_positive(value) -> bool:
+    """Reject bools and non-numeric/unbounded values for risk accounting."""
+    return type(value) in (int, float) and math.isfinite(value) and value > 0
 
-    Compatibility with the previous signature is preserved for GUI/tests,
-    but confidence is not used for sizing. This is a *currency budget*, not
-    an executable share quantity; use size_from_stop_distance for units.
+
+def calculate_position_size(confidence, balance, risk_per_trade=0.01, kelly_fraction=1.0):
+    """Cash risk budget, unrelated to uncalibrated LLM/model confidence.
+
+    Signature preserved for callers. This amount is not order share quantity.
     """
-    if not math.isfinite(balance) or balance <= 0:
+    if not _finite_positive(balance):
         raise ValueError("balance must be positive and finite")
-    if not math.isfinite(risk_per_trade) or not 0 < risk_per_trade <= 0.05:
+    if not _finite_positive(risk_per_trade) or risk_per_trade > 0.05:
         raise ValueError("risk_per_trade must be in (0, 0.05]")
     return float(balance) * float(risk_per_trade)
 
 
 def size_from_stop_distance(*, capital, entry_price, stop_price,
                             max_risk_fraction=0.01, max_position_fraction=0.20):
-    """Whole-share long size bounded by loss-to-stop and gross position value.
+    """Whole shares bounded by nominal stop risk and gross exposure.
 
-    Stop orders can gap or fail to fill, so actual losses can exceed this
-    nominal estimate. Independent drawdown and execution gates are required.
-    This function does not place, propose, or approve an order.
+    Not guaranteed: stop fills can gap, slip or be rejected. Long-only.
     """
     inputs = (capital, entry_price, stop_price, max_risk_fraction, max_position_fraction)
-    if not all(isinstance(x, (int, float)) and math.isfinite(x) for x in inputs):
+    if not all(type(x) in (int, float) and math.isfinite(x) for x in inputs):
         raise ValueError("risk inputs must be finite numbers")
     if capital <= 0 or entry_price <= 0 or not (0 < stop_price < entry_price):
         raise ValueError("require positive capital, entry and lower long stop")
@@ -39,21 +42,52 @@ def size_from_stop_distance(*, capital, entry_price, stop_price,
     qty_value = math.floor((capital * max_position_fraction) / entry_price)
     return max(0, min(qty_loss, qty_value))
 
-# Example: Portfolio heat and drawdown checks
 
 def get_portfolio_heat(portfolio, price_lookup):
+    """Estimate nominal stop-distance exposure divided by available balance.
+
+    Returns +infinity if balance, direction, stop or quantity is missing,
+    invalid or inconsistent. Unknown risk must never become 0% merely because
+    a denominator is zero or a protective stop was not supplied.
+
+    price_lookup is retained for existing callers; entry-to-stop exposure
+    is deliberately independent of fluctuating marks. This is not gap VaR.
     """
-    Returns total risk exposure as a fraction of balance.
-    """
-    total_risk = 0
+    balance = getattr(portfolio, "balance", None)
+    if not _finite_positive(balance):
+        return math.inf
+    total_risk = 0.0
     for trade in portfolio.get_open_trades():
-        # Risk per trade = abs(entry - stop) * size
-        risk = abs(trade.entry - trade.stop) * trade.size
-        total_risk += risk
-    return total_risk / portfolio.balance if portfolio.balance > 0 else 0
+        entry = getattr(trade, "entry", None)
+        stop = getattr(trade, "stop", None)
+        size = getattr(trade, "size", None)
+        direction = getattr(trade, "direction", None)
+        if not (_finite_positive(entry) and _finite_positive(stop)
+                and _finite_positive(size)):
+            return math.inf
+        if direction == 'long':
+            if not stop < entry:
+                return math.inf
+            distance = entry - stop
+        elif direction == 'short':
+            if not stop > entry:
+                return math.inf
+            distance = stop - entry
+        else:
+            return math.inf
+        total_risk += distance * size
+        if not math.isfinite(total_risk):
+            return math.inf
+    return total_risk / balance
+
 
 def check_drawdown(portfolio, max_drawdown=0.2):
-    """
-    Returns True if drawdown exceeds max_drawdown (e.g., 20%).
-    """
-    return portfolio.max_drawdown >= max_drawdown
+    """Return True when drawdown violates the threshold OR data is invalid."""
+    actual = getattr(portfolio, "max_drawdown", None)
+    if not (type(actual) in (int, float) and math.isfinite(actual)
+            and 0 <= actual <= 1):
+        return True
+    if not (type(max_drawdown) in (int, float) and math.isfinite(max_drawdown)
+            and 0 < max_drawdown <= 1):
+        return True
+    return actual >= max_drawdown
