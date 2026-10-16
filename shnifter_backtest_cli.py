@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
-from dataclasses import asdict
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -66,7 +66,7 @@ def execute_backtest(args, *, stdout=None, stderr=None) -> int:
             fee_bps=args.fee_bps, slippage_bps=args.slippage_bps,
         )
         ticker = args.ticker.strip().upper()
-        if not ticker or any(c.isspace() for c in ticker) or len(ticker) > 32:
+        if not re.fullmatch(r'[A-Z0-9^][A-Z0-9.^_=-]{0,31}', ticker):
             raise ValueError('ticker must be a single symbol of at most 32 characters')
         result = run_replay(load_csv(args.csv), config, ticker=ticker)
         output = json.dumps(result, indent=2, allow_nan=False) + '\n'
