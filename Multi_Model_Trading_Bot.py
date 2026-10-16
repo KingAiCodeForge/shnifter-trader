@@ -582,7 +582,11 @@ class MainWindow(QMainWindow):
             # the GUI button even when a provider raises. Async refactor pending.
             try:
                 for ticker in tickers:
-                    self.run_dual_llm_decision(ticker, news_provider)
+                    try:
+                        self.run_dual_llm_decision(ticker, news_provider)
+                    except Exception as exc:
+                        EventLog.emit("ERROR", f"Dual-LLM research failed for {ticker}: {exc}")
+                        self.log_display.append(f"Dual-LLM research failed for {ticker}: {exc}")
             finally:
                 self.start_button.setText("Start Analysis")
                 self.start_button.setEnabled(True)
@@ -680,8 +684,7 @@ class MainWindow(QMainWindow):
             ticker = result.get('ticker')
             decision = result.get('decision')
             llm_summary = result.get('llm_summary')
-            confidence = result.get('confidence', 0.5)
-            
+
             # Store decision for export
             if ticker and decision:
                 self.last_decisions[ticker] = {
@@ -737,6 +740,9 @@ class MainWindow(QMainWindow):
             self.backtest_workers.remove(worker)
             EventLog.emit("DEBUG", f"Backtest worker {worker} removed from tracking list.")
         worker.deleteLater()
+        if not any(w.isRunning() for w in getattr(self, 'analysis_workers', [])):
+            self.start_button.setText("Start Analysis")
+            self.start_button.setEnabled(True)
 
     def get_selected_llm_model(self):
         """Return the currently selected LLM model from the dropdown."""
