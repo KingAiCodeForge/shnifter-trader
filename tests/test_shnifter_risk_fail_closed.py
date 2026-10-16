@@ -69,6 +69,13 @@ class RiskGuardTests(unittest.TestCase):
             size_from_stop_distance(capital=10000, entry_price=100,
                                     stop_price=90, max_risk_fraction=True)
 
+    def test_numpy_real_values_supported(self):
+        import numpy as np
+        self.assertEqual(calculate_position_size(.5, np.float64(10000)), 100)
+        p = Portfolio(np.float64(10000))
+        p.add_trade(Trade('AAPL', np.float64(100), 10, np.float64(90), 120))
+        self.assertAlmostEqual(get_portfolio_heat(p, {}), 0.01)
+
     def test_stop_distance_sizing_stays_bounded(self):
         size = size_from_stop_distance(capital=10000, entry_price=100,
                                        stop_price=95, max_risk_fraction=.01,
