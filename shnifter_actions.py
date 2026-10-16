@@ -12,6 +12,8 @@ from typing import Any, Mapping
 _ACTIONS = (
     {"name": "actions.list", "description": "Discover available Shnifter tools",
      "side_effects": "none", "capability": "read_only"},
+    {"name": "market.historical", "description": "Fetch historical daily OHLCV by ticker using yfinance with bounded date range",
+     "side_effects": "external_data_fetch", "capability": "read_only"},
     {"name": "analysis.signals", "description": "Calculate SMA and chronological RandomForest research signals from complete daily bars",
      "side_effects": "none", "capability": "read_only"},
     {"name": "backtest.replay", "description": "Deterministic long-only historical SMA strategy replay with fees and slippage",
@@ -49,6 +51,25 @@ def invoke_action(name: str, params: dict[str, Any] | None = None) -> dict[str, 
     if name == "actions.list":
         _strict_params(name, params, set(), set())
         return {"ok": True, "actions": list_actions()}
+    if name == "market.historical":
+        _strict_params(name, params, {"ticker", "start", "end", "limit"},
+                       {"ticker", "start", "end"})
+        from argparse import ArgumentTypeError
+        from shnifter_cli import _ticker, _iso_date, _fetch_historical, _records_from_frame
+        try:
+            ticker = _ticker(params["ticker"])
+            start = _iso_date(params["start"])
+            end = _iso_date(params["end"])
+        except (ArgumentTypeError, TypeError) as exc:
+            raise ValueError(f"invalid market request: {exc}") from exc
+        limit = params.get("limit", 100)
+        if type(limit) is not int or not 1 <= limit <= 1000 or start >= end:
+            raise ValueError("limit must be 1..1000 and start must precede end")
+        frame = _fetch_historical(ticker, start.isoformat(), end.isoformat())
+        rows = _records_from_frame(frame, limit)
+        return {"ok": True, "action": name, "ticker": ticker, "provider": "yfinance",
+                "start": start.isoformat(), "end_exclusive": end.isoformat(),
+                "count": len(rows), "rows": rows}
     if name == "analysis.signals":
         keys = {"ticker", "rows", "fast", "slow", "min_labeled", "use_ml"}
         _strict_params(name, params, keys, {"ticker", "rows"})
