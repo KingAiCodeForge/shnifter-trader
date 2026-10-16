@@ -132,7 +132,8 @@ class TestHistoricalCLI(unittest.TestCase):
             )
             self.assertEqual(status, 0, errors)
             self.assertTrue(dest.exists())
-            self.assertEqual(len(list(csv.DictReader(dest.open(newline="")))), 3)
+            with dest.open(newline="", encoding="utf-8") as handle:
+                self.assertEqual(len(list(csv.DictReader(handle))), 3)
             self.assertEqual(json.loads(output)["format"], "csv")
 
     def test_invalid_symbol_and_limit_fail_at_argparse(self):
