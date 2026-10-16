@@ -42,8 +42,8 @@ The Shnifter Trader is a fully autonomous AI-powered stock trading assistant for
 
 1. **Clone the repository:**
    ```sh
-   git clone https://github.com/yourusername/The_Shnifter_Trader.git
-   cd The_Shnifter_Trader
+   git clone https://github.com/KingAiCodeForge/shnifter-trader.git
+   cd shnifter-trader
    ```
 2. **Run the setup script (Windows):**
    ```sh
@@ -132,3 +132,50 @@ MIT License
 3. **Final Action**: Only after both passes is a trade signal generated and logged
 
 I am building Shnifter Trader using custom, original code and ideas. Some inspiration comes from open source projects, but all code is refactored and original for Python 3.13.2.
+
+
+---
+
+## Headless CLI: first action (market historical)
+
+The new CLI can fetch historical daily OHLCV records without importing the
+PySide6 GUI, starting Ollama, or placing a paper/live trade. It reuses the
+existing ShnifterBB -> yfinance price path, with one confirmed price provider.
+This is the first of several planned CLI actions, not a complete autonomous bot.
+
+From a source checkout with the Python dependencies installed:
+
+```bash
+python shnifter_cli.py --help
+python shnifter_cli.py market historical --help
+python shnifter_cli.py market historical --ticker AAPL --start 2026-01-01 --end 2026-10-01 --limit 20 --format json
+python shnifter_cli.py market historical --ticker NVDA --start 2026-01-01 --end 2026-10-01 --format csv --output nvda_history.csv
+```
+
+After installing the project via pip, use `shnifter-trader` in place of
+`python shnifter_cli.py`. The package console entry point is now wired to
+`shnifter_cli:main` rather than the nonexistent GUI `main()` function.
+
+Arguments: `--ticker` is one symbol; `--start` is inclusive and
+`--end` is **exclusive** (YYYY-MM-DD). `--provider` currently
+accepts only `yfinance`; `--limit` selects the most recent N bars; the default
+is 100. `--format` chooses JSON or CSV. `--output` writes to a file,
+and an existing file requires explicit `--overwrite`. The command exits nonzero
+for rejected dates, empty price data, or provider errors. Missing numbers are
+JSON null / empty CSV fields, not fabricated prices.
+
+Offline synthetic regression tests:
+
+```bash
+python -m unittest discover -s tests -p test_shnifter_cli.py -v
+```
+
+Historical price fetching requires network access. Offline tests use a fake
+fetcher; passing them does **not** prove live-feed reliability, execution,
+backtesting quality, model profitability, or correct portfolio accounting.
+
+**Important current limitations:** the legacy GUI backtest currently derives
+profit, win rate, and trade count from random values. The old GUI/paper ledger
+also has unverified integration and position-accounting behaviour. Do not
+interpret its demo outputs as measured strategy performance. No live broker
+actions are provided through the CLI. See `docs/CLI_ACTION_ROADMAP.md`.
