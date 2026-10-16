@@ -1,6 +1,6 @@
 """Shnifter Trader's headless, read-only command line entry point.
 
-Current commands expose only historical market data and offline backtesting. Importing this module,
+Commands expose historical data, replay, and isolated paper-account simulation. Importing this module,
 including displaying --help, does not initialise Qt, Ollama, a broker or a model.
 """
 from __future__ import annotations
@@ -82,6 +82,8 @@ def build_parser() -> argparse.ArgumentParser:
     # Second read-only action: historical replay, no simulated/live account writes.
     from shnifter_backtest_cli import register_backtest
     register_backtest(groups.add_parser("backtest", help="Deterministic historical strategy replay"))
+    from shnifter_paper_cli import register_paper
+    register_paper(groups.add_parser("paper", help="Isolated SQLite simulation (NEVER live trading)"))
     return parser
 
 
@@ -194,6 +196,9 @@ def main(
     args = build_parser().parse_args(argv)
     out = stdout if stdout is not None else sys.stdout
     err = stderr if stderr is not None else sys.stderr
+    if args.group == "paper":
+        from shnifter_paper_cli import execute_paper
+        return execute_paper(args, stdout=out, stderr=err)
     if args.group == "backtest":
         from shnifter_backtest_cli import execute_backtest
         return execute_backtest(args, stdout=out, stderr=err)
