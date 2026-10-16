@@ -312,6 +312,17 @@ class PaperLedger:
                      fee_cents,time_str))
             return self._receipt(db, event_key)
 
+    def halt(self, reason: str):
+        """Persist a manual kill switch. No automatic reactivation exists."""
+        reason = str(reason).strip()
+        if not 1 <= len(reason) <= 240:
+            raise ValueError('halt reason must be 1..240 characters')
+        with self._connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('UPDATE paper_account SET halted=1, halt_reason=? WHERE id=1',
+                       ('operator: ' + reason,))
+        return self.status()
+
     def status(self):
         """Read authoritative stored cash/trades; no invented mark-to-market quotes."""
         with self._connect() as db:
