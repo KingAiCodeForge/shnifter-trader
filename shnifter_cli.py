@@ -123,7 +123,7 @@ def _column_map(frame) -> dict[str, object]:
 
 
 def _numeric(value, field: str):
-    # NaN and infinite numbers are not valid JSON; represent missing quotes
+    # NaN and infinite numbers are not valid JSON; represent missing prices
     # and adjusted closes as null rather than inventing a value.
     if value is None:
         return None
