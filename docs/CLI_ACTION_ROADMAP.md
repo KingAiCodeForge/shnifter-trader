@@ -12,7 +12,7 @@ silently expose GUI callbacks as CLI commands.
 | --- | --- | --- |
 | 1 | market historical | **Implemented on review branch**: read-only, yfinance via ShnifterBB, JSON/CSV, date/symbol validation, tests |
 | 2 | market news | **Not implemented**: validate upstream article schemas, published time and source URLs; no fabricated news |
-| 3 | analysis signals | **Not implemented**: extract GUI-bound trend/ML/sentiment methods into one pure headless service; separate evidence from decisions |
+| 3 | analysis signals | **Implemented on review branch**: GUI trend/ML wrappers now call headless research logic; last ML label no longer fabricated; sentiment and LLM remain separate |
 | 4 | backtest run | **Implemented in review branch**: GUI/CLI use deterministic next-open daily SMA replay with costs, audit trail and risk halt; still needs real-market smoke testing |
 | 5 | paper ledger | **Blocked**: migrate SQLite safely; durable IDs for signals, orders, executions and trades; close by trade ID |
 | 6 | risk check | **Blocked**: deterministic exposure/position/drawdown/stale-data/duplicate checks independent of AI |
@@ -65,3 +65,18 @@ SQLite store with atomic idempotent signals/fills and failure-safe risk gates.
 Then wire scheduled autonomous paper cycles and optional LLM research.
 Do not call a historical backtest a production-ready automated trader.
 Profitability is an empirical result, never a feature assertion.
+
+## Agent interface progress — 2026-10-17
+
+- Added headless `shnifter_analysis_core.py` with chronological ML and
+  reproducible score reporting (not calibrated prediction probabilities).
+- Added read-only `shnifter_actions.py` allowlist, CLI discovery, FastAPI
+  localhost adapter, and optional MCP stdio adapter for Claude/Codex.
+- Added `AGENTS.md`, `CLAUDE.md` and developer integration instructions.
+- Removed GUI analysis-driven automatic trade creation and invented
+  confidence-based model performance updates on this review branch.
+- Replaced legacy confidence-weighted Kelly proxy with fixed risk budgeting
+  and independent stop-distance share sizing.
+- Remaining: GUI smoke check, MCP v2 host handshake, full cross-module test
+  suite, paper ledger/idempotency, supervised paper deployment, and optional
+  bounded LLM research.
