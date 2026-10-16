@@ -220,3 +220,34 @@ demonstrate profitability or predict future returns. Strategy and risk
 parameters are research knobs, not optimized defaults. Next milestone:
 correct the durable SQLite paper-order ledger before enabling scheduled
 order simulation.
+
+
+## New: AI-agent-accessible research commands (review branch)
+
+Shnifter now has a **shared, headless, read-only** action service:
+
+- \`python shnifter_cli.py actions list\` returns a JSON capability catalogue.
+- \`python shnifter_cli.py analysis signals --csv prices.csv --ticker AAPL --fast 20 --slow 50\` computes chronological SMA/RandomForest research signals.
+- \`shnifter_agent_api.py\` exposes the same actions over local FastAPI HTTP.
+- \`shnifter_agent_mcp.py\` exposes the same actions to compatible MCP hosts (optional SDK v2).
+- The historical replay action is also available through this shared dispatcher.
+
+The GUI's normal analysis no longer silently opens simulated positions or
+invents performance metrics from model confidence. The headless RandomForest
+does not assign the last price bar an imaginary next-day target. Its reported
+probability-up score is **uncalibrated** and is not a risk-sizing instruction.
+The old confidence-weighted Kelly helper is replaced with bounded sizing.
+
+Read [agent integration details](docs/SHNIFTER_AGENT_INTERFACES.md) and
+[AI coding-agent instructions](AGENTS.md).
+
+**Security:** These research actions cannot place real or paper-account orders.
+Never grant arbitrary model tool calls authority to submit live trades, run
+generated shell code in the trading environment, change account limits or
+read private credentials. The REST API defaults to loopback-only access without
+a separately configured key. A broker/paper execution gateway is a later,
+independently permissioned component.
+
+**Validation:** Local synthetic tests cover CLI, HTTP authentication, signal
+logic and the replay dispatcher. Full GUI, installed-wheel and MCP SDK host
+integration tests are not yet complete. Profitability is unproven.
