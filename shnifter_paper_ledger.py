@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 import sqlite3
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
@@ -119,6 +119,21 @@ CREATE TABLE IF NOT EXISTS paper_fills (
 
 
 class PaperLedger:
+    @classmethod
+    def open_existing(cls, db_path: str | Path):
+        """Load the persisted risk policy without accepting new safety limits."""
+        path = Path(db_path)
+        if not path.is_file():
+            raise FileNotFoundError('paper ledger not initialized; use paper init')
+        with closing(sqlite3.connect(str(path))) as db:
+            row = db.execute('SELECT settings_json FROM paper_policy WHERE id=1').fetchone()
+        if not row:
+            raise ValueError('paper database is missing its policy')
+        stored = json.loads(row[0])
+        cfg = {key: (int(value) if key == 'max_signal_age_minutes' else Decimal(value))
+               for key, value in stored.items()}
+        return cls(path, PaperPolicy(**cfg))
+
     def __init__(self, db_path: str | Path, policy: PaperPolicy | None = None):
         self.path = Path(db_path)
         if self.path.name == 'shnifter_trading.db':
