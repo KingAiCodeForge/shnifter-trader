@@ -588,12 +588,11 @@ class MainWindow(QMainWindow):
                 self.start_button.setEnabled(True)
             return
         for ticker in tickers:
-            if True:
-                worker = AnalysisWorker(ticker, llm_model=llm_model, news_provider=news_provider)
-                worker.finished_signal.connect(self.on_analysis_complete)
-                worker.finished.connect(self.remove_finished_worker)
-                self.analysis_workers.append(worker)
-                worker.start()
+            worker = AnalysisWorker(ticker, llm_model=llm_model, news_provider=news_provider)
+            worker.finished_signal.connect(self.on_analysis_complete)
+            worker.finished.connect(self.remove_finished_worker)
+            self.analysis_workers.append(worker)
+            worker.start()
         print(f"INFO: Started analysis for tickers: {', '.join(tickers)}")
 
     def run_dual_llm_decision(self, ticker, news_provider):
