@@ -4,7 +4,7 @@ by KingAi, Jason King, South Australia.
 
 Im average at coding, this is a project i spent 2 hours on using vscode. idea was a ai powered auto trader called shnifter after the name of a mate i have on steam and discord, who said he wanted a autonomous trader... future intergrations will be openhands, autoMate, maybe openmanus or agentzero and agentgym. wired to the eventbus of course. EDA, more llm models and then a validation loop between ai models, or multi step system or parralel system. before output or commands issued.
 
-The Shnifter Trader is a fully autonomous AI-powered stock trading assistant for Windows desktops. It leverages a multi-model decision system to provide real-time buy, sell, or hold recommendations using:
+The Shnifter Trader is an experimental stock-analysis and simulated-trading project for Windows desktops. Its GUI, models and legacy paper-account path still require integration work; it is **not** a validated autonomous trading system or a live brokerage trader. It leverages a multi-model decision system to provide real-time buy, sell, or hold recommendations using:
 
 - **Technical Analysis** (SMA crossover)
 - **Machine Learning** (Random Forest on price deltas)
@@ -22,8 +22,8 @@ The Shnifter Trader is a fully autonomous AI-powered stock trading assistant for
 - **LLM Reasoning**: Human-readable explanations via Ollama
 - **EventBus Architecture**: Centralized logging to GUI, file, and console
 - **PySide6 GUI**: Multi-ticker input, log window, color-coded messages, charting
-- **Autonomous Execution**: Re-analyzes tickers every 10 minutes
-- **Backtesting**: Simple backtest module in GUI
+- **Scheduled GUI Analysis**: Requests analysis every 10 minutes while the app runs (not yet a restart-safe autonomous order loop)
+- **Backtesting**: Deterministic long-only SMA crossover replay in GUI and CLI with auditable signals/fills and explicit transaction costs
 - **Export**: Logs and last decisions to TXT, CSV, JSON
 
 ---
@@ -92,7 +92,8 @@ The Shnifter Trader is a fully autonomous AI-powered stock trading assistant for
 
 Run tests with:
 ```sh
-python -m unittest test_shnifter.py
+python -m unittest discover -s tests -p 'test_shnifter_replay.py' -v
+python -m unittest discover -s tests -p 'test_shnifter_backtest_cli.py' -v
 ```
 
 ---
@@ -179,3 +180,43 @@ profit, win rate, and trade count from random values. The old GUI/paper ledger
 also has unverified integration and position-accounting behaviour. Do not
 interpret its demo outputs as measured strategy performance. No live broker
 actions are provided through the CLI. See `docs/CLI_ACTION_ROADMAP.md`.
+
+
+## Deterministic historical replay (new)
+
+**This is simulation, not real/autonomous brokerage execution.** The GUI's
+previous backtest randomly generated profit, win-rate and trade counts.
+That calculation is now replaced with a reproducible single-symbol, long-only
+SMA-crossover replay. Results come from OHLCV rows, not random numbers.
+
+Run from a Python source checkout (no Qt or Ollama is needed for this CLI action):
+
+```bash
+python shnifter_cli.py backtest run --csv prices.csv --ticker AAPL --fast 20 --slow 50 --initial-cash 10000 --max-position-pct 0.20 --stop-loss-pct 0.05 --take-profit-pct 0.10 --max-drawdown-pct 0.20 --fee-bps 10 --slippage-bps 5 --output backtest_report.json
+```
+
+CSV column header: `date,open,high,low,close,volume` (daily, ordered,
+unique YYYY-MM-DD dates; prices >0, finite, consistent OHLC). Supply your
+own **historical market-data file**. No included test fixture constitutes
+real market data. Use `--overwrite` explicitly if replacing a JSON report.
+
+The engine computes SMA crossovers only after the bar's close and fills orders
+at the **next** bar's opening price. It includes adverse execution slippage
+and fees, whole-share positions, maximum initial entry allocation, protective
+stop/target exits, and a persistent-for-the-run drawdown halt that prevents
+further entries. If both stop and target are inside the same bar, stop is
+assumed first. Gap-through-stop fills at the worse open, not the stop price.
+
+Reports include the deterministic run ID, settings, dated signals, fills,
+completed trades, cash, mark-to-market equity, realised/unrealised P&L,
+drawdown and ending open position. With no completed trades the win rate is
+**null**, not a fabricated statistic. A final open position is never silently
+closed at the last historical candle.
+
+Limitations: one instrument, no shorts/fractional shares, no real-order fills,
+no partial fills, volume constraints, market impact, dividends, holidays,
+overnight borrow costs, or intrabar path reconstruction. This does **not**
+demonstrate profitability or predict future returns. Strategy and risk
+parameters are research knobs, not optimized defaults. Next milestone:
+correct the durable SQLite paper-order ledger before enabling scheduled
+order simulation.
