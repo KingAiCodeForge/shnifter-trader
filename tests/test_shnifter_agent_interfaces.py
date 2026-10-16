@@ -79,7 +79,7 @@ class CoreTests(unittest.TestCase):
     def test_action_catalogue_and_no_order_routes(self):
         found = list_actions()
         self.assertEqual({x['name'] for x in found},
-                         {'actions.list','analysis.signals','backtest.replay'})
+                         {'actions.list','market.historical','analysis.signals','backtest.replay'})
         self.assertTrue(all(x['capability']=='read_only' for x in found))
         for candidate in ('paper.order','broker.submit_order','live.buy'):
             with self.assertRaises(ValueError):
@@ -92,6 +92,19 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(replay['result']['engine'], 'shnifter.sma.next-open.v1')
         self.assertTrue(replay['result']['run_id'])
         self.assertEqual(replay['result']['bars'],len(self.rows))
+
+    def test_market_action_mocked_no_network(self):
+        prices = pd.DataFrame({"open": [100], "high": [102], "low": [99],
+                               "close": [101], "volume": [1234]},
+                              index=pd.to_datetime(["2026-10-01"]))
+        with patch("shnifter_cli._fetch_historical", return_value=prices) as fetch:
+            result = invoke_action("market.historical", {
+                "ticker": "AAPL", "start": "2026-10-01", "end": "2026-10-02"})
+            self.assertEqual(result["rows"][0]["close"], 101.0)
+            fetch.assert_called_once()
+        with self.assertRaises(ValueError):
+            invoke_action("market.historical", {
+                "ticker": "AAPL", "start": "2026-10-02", "end": "2026-10-01"})
 
     def test_action_rejects_unknown_params_and_unordered_rows(self):
         with self.assertRaises(ValueError):
@@ -122,7 +135,7 @@ class CLIAndHTTPTests(unittest.TestCase):
         out=io.StringIO();err=io.StringIO()
         rc=run_action(self.parser().parse_args(['actions','list']),stdout=out,stderr=err)
         self.assertEqual(rc,0,err.getvalue())
-        self.assertEqual(len(json.loads(out.getvalue())['actions']),3)
+        self.assertEqual(len(json.loads(out.getvalue())['actions']),4)
 
     def test_cli_analyse(self):
         out=io.StringIO();err=io.StringIO()
