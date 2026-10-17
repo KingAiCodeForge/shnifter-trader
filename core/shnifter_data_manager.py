@@ -485,7 +485,11 @@ class ShnifterDataManager:
                 max_drawdown=self.portfolio.max_drawdown * 100,
                 current_drawdown=(self.portfolio.peak_balance - self.portfolio.balance) / self.portfolio.peak_balance * 100 if self.portfolio.peak_balance > 0 else 0.0,
                 sharpe_ratio=self._calculate_sharpe_ratio(),
-                profit_factor=abs(avg_win / avg_loss) if avg_loss != 0 else 0.0,
+                # Standard gross profit divided by absolute gross loss,
+                # not the ratio of *average* winning and losing trades.
+                profit_factor=(sum(t.pnl for t in winning_trades) /
+                               abs(sum(t.pnl for t in losing_trades))
+                               if losing_trades else 0.0),
                 active_positions=len(self.portfolio.get_open_trades()),
                 last_updated=datetime.now()
             )
@@ -522,33 +526,46 @@ class ShnifterDataManager:
             'close_time': trade.close_time.isoformat() if trade.close_time else None
         }
 
-    def _save_trade(self, trade: Trade):
-        """Save trade to database"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
-                    INSERT INTO trades (ticker, entry_price, size, direction, 
-                                      stop_loss, take_profit, status, confidence, open_time)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    trade.ticker, trade.entry, trade.size, trade.direction,
-                    trade.stop, trade.take_profit, trade.status, trade.confidence,
-                    trade.open_time
-                ))
-        except Exception as e:
-            EventLog.emit("ERROR", f"Could not save trade: {e}")
+    def _save_trade(self, trade: Trade) -> int:
+        """Insert exactly one simulated trade, returning its SQLite row ID.
 
-    def _update_trade_in_db(self, trade: Trade):
-        """Update trade in database when closed"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
-                    UPDATE trades 
-                    SET exit_price = ?, status = ?, pnl = ?, close_time = ?
-                    WHERE ticker = ? AND status = 'open'
-                """, (trade.exit, trade.status, trade.pnl, trade.close_time, trade.ticker))
-        except Exception as e:
-            EventLog.emit("ERROR", f"Could not update trade: {e}")
+        DB errors propagate; callers must not mutate in-memory holdings first.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                INSERT INTO trades (ticker, entry_price, size, direction,
+                                    stop_loss, take_profit, status,
+                                    confidence, open_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                trade.ticker, trade.entry, trade.size, trade.direction,
+                trade.stop, trade.take_profit, trade.status, trade.confidence,
+                trade.open_time
+            ))
+            return int(cursor.lastrowid)
+
+    def _update_trade_in_db(self, trade: Trade, exit_price: float,
+                            close_time: datetime) -> None:
+        """Transition one OPEN SQLite row to CLOSED before updating memory."""
+        if type(trade.trade_id) is not int or trade.trade_id <= 0:
+            raise ValueError("Trade lacks a valid SQLite trade_id")
+        if (not isinstance(exit_price, (int, float)) or
+                not np.isfinite(exit_price) or exit_price <= 0):
+            raise ValueError("Exit price must be a finite positive number")
+        if trade.direction == "long":
+            pnl = (exit_price - trade.entry) * trade.size
+        elif trade.direction == "short":
+            pnl = (trade.entry - exit_price) * trade.size
+        else:
+            raise ValueError("Unsupported simulated trade direction")
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                UPDATE trades
+                SET exit_price = ?, status = 'closed', pnl = ?, close_time = ?
+                WHERE id = ? AND status = 'open'
+            """, (exit_price, pnl, close_time, trade.trade_id))
+            if cursor.rowcount != 1:
+                raise RuntimeError("Trade closure mismatch: no unique OPEN SQLite row")
 
     def _save_model_performance(self, model_name: str):
         """Save model performance to database"""
