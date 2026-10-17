@@ -229,9 +229,10 @@ class ShnifterDataManager:
                         last_updated=datetime.now()
                     )
                 
-                # Load recent trades
+                # Load every open/closed row. LIMIT 100 previously hid old
+                # open positions after a restart and understated exposure.
                 trades_df = pd.read_sql_query(
-                    "SELECT * FROM trades ORDER BY created_at DESC LIMIT 100",
+                    "SELECT * FROM trades ORDER BY id ASC",
                     conn
                 )
                 for _, row in trades_df.iterrows():
@@ -243,20 +244,41 @@ class ShnifterDataManager:
                         take_profit=row['take_profit'],
                         status=row['status']
                     )
+                    trade.trade_id = int(row['id'])
                     trade.exit = row['exit_price']
                     trade.pnl = row['pnl']
                     trade.direction = row['direction']
                     trade.confidence = row['confidence']
-                    trade.open_time = row['open_time']
-                    trade.close_time = row['close_time']
-                    
+                    trade.open_time = (datetime.fromisoformat(str(row['open_time']))
+                                       if pd.notnull(row['open_time']) else None)
+                    trade.close_time = (datetime.fromisoformat(str(row['close_time']))
+                                        if pd.notnull(row['close_time']) else None)
                     if trade.status == 'open':
                         self.portfolio.add_trade(trade)
+                    elif trade.status == 'closed':
+                        self.portfolio.closed_trades.append(trade)
                     else:
-                        self.trade_history.append(trade)
+                        raise ValueError(f"unknown persisted trade state: {trade.status}")
+
+                # Reconstruct realised simulated balance and peak from all
+                # closed rows; the legacy schema lacks periodic NAV marks.
+                running = float(self.portfolio.balance)
+                peak = running
+                max_dd = 0.0
+                for trade in sorted(self.portfolio.closed_trades,
+                                    key=lambda t: (t.close_time or datetime.min,
+                                                   t.trade_id or 0)):
+                    running += float(trade.pnl)
+                    peak = max(peak, running)
+                    if peak > 0:
+                        max_dd = max(max_dd, (peak - running) / peak)
+                self.portfolio.balance = running
+                self.portfolio.peak_balance = peak
+                self.portfolio.max_drawdown = max_dd
         
         except Exception as e:
-            EventLog.emit("WARNING", f"Could not load existing data: {e}")
+            EventLog.emit("ERROR", f"Legacy ledger hydration failed: {e}")
+            raise RuntimeError("Legacy simulated ledger cannot safely hydrate") from e
 
     def register_stats_callback(self, callback: Callable):
         """Register callback for trading stats updates"""
@@ -282,14 +304,16 @@ class ShnifterDataManager:
         """Get model performance metrics"""
         with self._lock:
             if model_name:
-                return asdict(self.model_performance.get(model_name, {}))
+                value = self.model_performance.get(model_name)
+                return asdict(value) if value is not None else {}
             return {name: asdict(perf) for name, perf in self.model_performance.items()}
 
     def get_market_data(self, ticker: Optional[str] = None) -> Dict[str, Any]:
         """Get current market data"""
         with self._lock:
             if ticker:
-                return asdict(self.market_data.get(ticker, {}))
+                value = self.market_data.get(ticker)
+                return asdict(value) if value is not None else {}
             return {ticker: asdict(data) for ticker, data in self.market_data.items()}
 
     def get_trade_history(self, limit: int = 50) -> List[Dict[str, Any]]:
@@ -319,29 +343,35 @@ class ShnifterDataManager:
             trade.confidence = confidence
             trade.open_time = datetime.now()
             
+            # Persist first: failure must not create ghost in-memory trades.
+            trade.trade_id = self._save_trade(trade)
             self.portfolio.add_trade(trade)
-            self._save_trade(trade)
             self._update_stats()
             self._notify_trade_callbacks()
             
             EventLog.emit("INFO", f"Added {direction} trade: {ticker} @ {entry_price}")
 
-    def close_trade(self, ticker: str, exit_price: float):
-        """Close an open trade"""
+    def close_trade(self, ticker: str, exit_price: float, trade_id: Optional[int] = None):
+        """Close exactly one simulated position, by stable ID when ambiguous.
+
+        The DB transition commits BEFORE in-memory state changes. This is a
+        legacy simulated-account fix, not a broker execution confirmation.
+        """
         with self._lock:
-            open_trades = [t for t in self.portfolio.get_open_trades() if t.ticker == ticker]
-            if not open_trades:
-                EventLog.emit("WARNING", f"No open trade found for {ticker}")
-                return
-            
-            trade = open_trades[0]  # Close first matching trade
-            self.portfolio.close_trade(trade, exit_price, datetime.now())
-            self.trade_history.append(trade)
-            self._update_trade_in_db(trade)
+            matching = [t for t in self.portfolio.get_open_trades()
+                        if t.ticker == ticker and
+                        (trade_id is None or t.trade_id == trade_id)]
+            if not matching:
+                raise ValueError(f"No matching open position: {ticker}, id={trade_id}")
+            if len(matching) != 1:
+                raise ValueError("Multiple open positions: trade_id is required")
+            trade = matching[0]
+            closed_at = datetime.now()
+            self._update_trade_in_db(trade, exit_price, closed_at)
+            self.portfolio.close_trade(trade, exit_price, closed_at)
             self._update_stats()
             self._notify_trade_callbacks()
-            
-            EventLog.emit("INFO", f"Closed trade: {ticker} @ {exit_price}, P&L: {trade.pnl:.2f}")
+            EventLog.emit("INFO", f"Closed simulated trade ID {trade.trade_id}: {ticker}")
 
     def update_model_performance(self, model_name: str, accuracy: float, 
                                precision: float, recall: float, f1_score: float,
