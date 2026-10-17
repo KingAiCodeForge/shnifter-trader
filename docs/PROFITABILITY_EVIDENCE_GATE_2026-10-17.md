@@ -29,7 +29,7 @@ Other available commands include actions list, experiments list/verify, backtest
 3. Choose from a predeclared moving-average grid using solely the validation net-return, drawdown and fill-count score. Later test prices do not select the candidate.
 4. On later test bars, simulate next-open fills, stop/target exits, transaction costs, adverse slippage, whole shares, entry allocation and a drawdown halt.
 5. Benchmark against same-allocation buy-and-hold plus cash. Repeat selected candidate with higher costs.
-6. Log all validation candidates, selected windows, per-fold test results, undefined profit factors as null, estimated daily Sharpe, and data/policy SHA256 digests.
+6. Log all validation candidates, selected windows, per-fold test results, undefined profit factors as null, unannualised per-bar mean/std ratio, and data/policy SHA256 digests.
 7. A candidate may be flagged for **further paper research** only. Every result always reports live_authorized=false, even when synthetic performance is positive.
 
 Earlier test folds can appear in later folds' validation history because they would already be known at the later date. Running multiple subsequent searches against displayed holdout results invalidates independence; truly sealed evaluation needs a separate dataset owner and evaluator.
