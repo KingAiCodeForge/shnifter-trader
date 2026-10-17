@@ -25,8 +25,8 @@ def register_actions(parser):
 
 
 def run_action(args, *, stdout=None, stderr=None) -> int:
-    out = stdout or sys.stdout
-    err = stderr or sys.stderr
+    out = stdout if stdout is not None else sys.stdout
+    err = stderr if stderr is not None else sys.stderr
     if args.group == 'actions':
         from shnifter_actions import invoke_action
         out.write(json.dumps(invoke_action('actions.list'), indent=2) + '\n')
@@ -37,6 +37,9 @@ def run_action(args, *, stdout=None, stderr=None) -> int:
         err.write('error: --overwrite requires --output\n')
         return 2
     try:
+        from shnifter_safe_output import validate_output, atomic_write_text
+        if args.output is not None:
+            validate_output(args.output, overwrite=args.overwrite, protected=(args.csv,))
         from shnifter_actions import invoke_action
         from shnifter_replay import load_csv
         result = invoke_action('analysis.signals', {
@@ -48,8 +51,8 @@ def run_action(args, *, stdout=None, stderr=None) -> int:
         if args.output is None:
             out.write(text)
         else:
-            with args.output.open('w' if args.overwrite else 'x', encoding='utf-8') as handle:
-                handle.write(text)
+            atomic_write_text(args.output, text, overwrite=args.overwrite,
+                              protected=(args.csv,))
             out.write(json.dumps({'ok': True, 'action': 'analysis.signals',
                                   'output': str(args.output)}) + '\n')
         return 0
