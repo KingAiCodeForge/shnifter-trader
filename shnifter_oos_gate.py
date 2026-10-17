@@ -14,10 +14,11 @@ from dataclasses import asdict, dataclass
 from decimal import Decimal, ROUND_FLOOR
 from typing import Iterable
 
-from shnifter_replay import Bar, ReplayConfig, normalise_bars, run_replay
+from shnifter_replay import (Bar, ReplayConfig, normalise_bars, run_replay,
+                             _fee, _fill_price, _money)
 
 CANDIDATES = ((5, 20), (10, 30), (20, 50), (20, 100))
-VERSION = "shnifter.oos-fold-evaluator.v1"
+VERSION = "shnifter.oos-fold-evaluator.v2"
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,22 @@ class GatePolicy:
     max_test_drawdown_pct: Decimal = Decimal("20")
     candidates: tuple[tuple[int, int], ...] = CANDIDATES
 
+    def __post_init__(self):
+        # API callers may supply ordinary JSON numbers or decimal strings.
+        # Normalise once; booleans are not monetary/risk values.
+        for name in ("fee_bps", "slippage_bps", "stress_multiplier", "max_position_pct",
+                     "initial_cash", "min_mean_excess_return_pct", "max_test_drawdown_pct"):
+            raw = getattr(self, name)
+            if type(raw) not in (Decimal, int, float, str):
+                raise ValueError(f"{name} must be a finite decimal")
+            try:
+                value = Decimal(str(raw))
+            except (ValueError, ArithmeticError) as exc:
+                raise ValueError(f"{name} must be a finite decimal") from exc
+            if not value.is_finite():
+                raise ValueError(f"{name} must be finite")
+            object.__setattr__(self, name, value)
+
     def validate(self):
         for name in ("folds", "validation_bars", "test_bars", "min_prior_bars",
                      "min_total_completed_trades"):
@@ -50,6 +67,10 @@ class GatePolicy:
             if (not isinstance(pair, tuple) or len(pair) != 2 or
                 not all(type(x) is int for x in pair) or not 2 <= pair[0] < pair[1] <= 250):
                 raise ValueError("candidate SMA windows must satisfy 2 <= fast < slow <= 250")
+        if len(set(self.candidates)) != len(self.candidates):
+            raise ValueError("duplicate candidate SMA pairs")
+        if self.min_prior_bars > 10000 or self.min_total_completed_trades > 100000:
+            raise ValueError("prior history or trade-count threshold out of bounds")
         for name in ("fee_bps", "slippage_bps", "stress_multiplier", "max_position_pct",
                      "initial_cash", "min_mean_excess_return_pct", "max_test_drawdown_pct"):
             x = Decimal(str(getattr(self, name)))
@@ -124,30 +145,47 @@ def _summary(report: dict, warmup: int) -> dict:
             "run_id": report["run_id"]}
 
 
-def _buy_hold(bars: list[Bar], start: int, end: int, policy: GatePolicy) -> dict:
-    # Same maximum allocation as active strategy; fills at first test open.
-    # This is a baseline, not an orderbook fill model or adjusted total return.
-    cash = policy.initial_cash
-    fee = policy.fee_bps / Decimal("10000")
-    slip = policy.slippage_bps / Decimal("10000")
-    entry = bars[start].open * (1 + slip)
-    budget = cash * policy.max_position_pct
-    shares = int((budget / (entry * (1 + fee))).to_integral_value(rounding=ROUND_FLOOR))
-    cash -= entry * shares * (1 + fee)
-    peak = cash
+def _buy_hold(bars: list[Bar], start: int, end: int, policy: GatePolicy,
+              stress: bool = False) -> dict:
+    """Use the strategy's cent-rounded execution costs and initial NAV peak.
+
+    Buy once at the first test open; remaining shares are marked at the last
+    close, not sold. No exit fees are invented for an unexecuted liquidation.
+    """
+    mult = policy.stress_multiplier if stress else Decimal(1)
+    cfg = ReplayConfig(fee_bps=policy.fee_bps * mult,
+                       slippage_bps=policy.slippage_bps * mult)
+    initial = _money(policy.initial_cash)
+    entry = _fill_price(bars[start].open, "BUY", cfg)
+    if entry <= 0:
+        raise ValueError("benchmark fill price rounds to zero")
+    budget = _money(initial * policy.max_position_pct)
+    shares = int((budget / (entry * (1 + cfg.fee_bps / 10000)))
+                 .to_integral_value(rounding=ROUND_FLOOR))
+    commission = _fee(entry * shares, cfg)
+    while shares > 0 and entry * shares + commission > budget:
+        shares -= 1
+        commission = _fee(entry * shares, cfg)
+    cash = initial - entry * shares - commission
+    peak = initial  # Include entry fees, spread and any first-bar loss.
     worst = Decimal(0)
     for bar in bars[start:end]:
         equity = cash + shares * bar.close
         peak = max(peak, equity)
         worst = max(worst, (peak - equity) / peak)
     final = cash + shares * bars[end-1].close
-    return {"return_pct": round(float((final / policy.initial_cash - 1) * 100), 5),
+    return {"return_pct": round(float((final / initial - 1) * 100), 5),
             "max_drawdown_pct": round(float(worst * 100), 5),
-            "shares": shares, "benchmark": "same-cap buy-and-hold; cash remainder"}
+            "shares": shares, "entry_price": float(entry),
+            "entry_fee": float(commission), "cash": float(cash),
+            "final_equity": float(_money(final)),
+            "benchmark": "same-cap buy-and-hold; cash remainder"}
 
 
 def evaluate_oos(bars: Iterable[Bar], *, ticker: str, policy: GatePolicy | None = None) -> dict:
-    policy = policy or GatePolicy()
+    policy = GatePolicy() if policy is None else policy
+    if not isinstance(policy, GatePolicy):
+        raise ValueError("policy must be GatePolicy")
     policy.validate()
     if not isinstance(ticker, str) or not re.fullmatch(r"[A-Z0-9^][A-Z0-9.^_=-]{0,31}", ticker):
         raise ValueError("ticker must be a single valid symbol")
@@ -187,6 +225,7 @@ def evaluate_oos(bars: Iterable[Bar], *, ticker: str, policy: GatePolicy | None 
         test = _summary(_replay(bars, test_start, test_end, fast, slow, policy, ticker), slow)
         stress = _summary(_replay(bars, test_start, test_end, fast, slow, policy, ticker, True), slow)
         hold = _buy_hold(bars, test_start, test_end, policy)
+        stress_hold = _buy_hold(bars, test_start, test_end, policy, True)
         fold_results.append({
             "fold": fold + 1,
             "prior_history_end_exclusive": bars[val_start].date,
@@ -194,7 +233,8 @@ def evaluate_oos(bars: Iterable[Bar], *, ticker: str, policy: GatePolicy | None 
                            "standings": standings},
             "test": {"start": bars[test_start].date, "end": bars[test_end-1].date,
                      "strategy": test, "stressed_costs": stress,
-                     "buy_and_hold": hold, "cash_return_pct": 0},
+                     "buy_and_hold": hold, "stressed_buy_and_hold": stress_hold,
+                     "cash_return_pct": 0},
             "selected": {"fast": fast, "slow": slow},
         })
     returns = [row["test"]["strategy"]["return_pct"] for row in fold_results]
