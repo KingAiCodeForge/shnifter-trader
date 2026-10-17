@@ -1,7 +1,7 @@
-"""Shnifter Trader's headless, read-only command line entry point.
+"""Shnifter Trader headless research CLI.
 
-Current commands expose only historical market data and offline backtesting. Importing this module,
-including displaying --help, does not initialise Qt, Ollama, a broker or a model.
+Read-only analysis by default, with explicit local SQLite research archiving.
+Importing this module (including --help) does not load Qt, an LLM or a broker.
 """
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def _positive_int(value: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="shnifter-trader",
-        description="Headless Shnifter Trader commands (read-only in this release).",
+        description="Headless research and opt-in experiment registry; no order routing.",
     )
     groups = parser.add_subparsers(dest="group", required=True)
     market = groups.add_parser("market", help="Market-data commands")
@@ -84,6 +84,8 @@ def build_parser() -> argparse.ArgumentParser:
     register_backtest(groups.add_parser("backtest", help="Deterministic historical strategy replay"))
     from shnifter_agent_cli import register_actions
     register_actions(groups)
+    from shnifter_experiment_cli import register_experiment_cli
+    register_experiment_cli(groups)
     return parser
 
 
@@ -199,6 +201,9 @@ def main(
     if args.group == "backtest":
         from shnifter_backtest_cli import execute_backtest
         return execute_backtest(args, stdout=out, stderr=err)
+    if args.group == "experiments":
+        from shnifter_experiment_cli import run_experiment_cli
+        return run_experiment_cli(args, stdout=out, stderr=err)
     if args.group in ("analysis", "actions"):
         from shnifter_agent_cli import run_action
         return run_action(args, stdout=out, stderr=err)
