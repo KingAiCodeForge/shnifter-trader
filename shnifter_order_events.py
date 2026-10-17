@@ -4,7 +4,9 @@ A LIMIT-order accounting simulator, not a matching engine. Fills are explicit
 simulation inputs. Cash/shares remain reserved through UNKNOWN and cancellation
 until reconciliation. Late contradictions are quarantined, never invented away.
 Only the append-only log is persisted; each transaction reconstructs its state.
-This intentionally trades throughput for auditability (maximum 10,000 events).
+Entry admission stops at 10,000 events, but safety/reconciliation events remain
+recordable. Full replay is intended only for small local research accounts.
+Version 2 refuses v1 stores; no silent migration or live broker approval.
 """
 from __future__ import annotations
 
@@ -20,9 +22,9 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-VERSION = "shnifter.paper-events.v1"
+VERSION = "shnifter.paper-events.v2"
 APPLICATION_ID = 0x53485045
-MAX_EVENTS = 10000
+MAX_EVENTS = 10000  # New-entry admission limit, NOT a kill-switch/write limit.
 MAX_INTEGER = 10**12
 ZERO_HASH = "0" * 64
 TERMINAL = {"FILLED", "CANCELLED", "REJECTED"}
@@ -113,13 +115,48 @@ def _invariants(state: dict) -> None:
         raise IntegrityError("reserved shares have no position")
 
 
+def _needs_reconciliation(state: dict) -> bool:
+    """One authoritative predicate for both displayed state and admission."""
+    return bool(state["quarantine"] or any(
+        order["uncertain"] or (order["status"] in TERMINAL and not order["settled"])
+        for order in state["orders"].values()))
+
+
+def _entry_capacity(state: dict | None, kind: str, data: dict, count: int) -> None:
+    """At the research capacity limit, forbid new BUY risk, not account cleanup.
+
+    Existing fills, acknowledgements, cancellations, halts, reconciliation and
+    bounded closing SELL intentions remain recordable. This does not make full
+    replay scalable; retire the account after a reconciled wind-down.
+    """
+    if count < MAX_EVENTS or state is None or type(data) is not dict:
+        return
+    side = data.get("side") if kind == "SUBMIT" else None
+    if kind == "TRANSMIT":
+        oid = data.get("order_id")
+        if type(oid) is str:
+            side = state["orders"].get(oid, {}).get("side")
+    if kind in ("SUBMIT", "TRANSMIT") and side == "BUY":
+        raise ValueError("entry capacity reached; only cleanup and closing sales remain available")
+
+
 def _quarantine(state: dict, event_id: str, message: str) -> dict:
     state["quarantine"].append({"event_id": event_id, "reason": message})
     return state
 
 
 def reduce_event(before: dict | None, event_id: str, kind: str, data: dict) -> dict:
-    """Pure reducer: never mutates the caller's snapshot or performs I/O."""
+    """Pure public reducer: preserve the caller's entire snapshot."""
+    return _apply_event(copy.deepcopy(before), event_id, kind, data)
+
+
+def _apply_event(before: dict | None, event_id: str, kind: str, data: dict) -> dict:
+    """Apply to a PRIVATE projection owned by this replay/transaction.
+
+    Never publish this object before successful replay/COMMIT. Avoid repeatedly
+    copying the entire growing account when reconstructing thousands of events.
+    Public callers use reduce_event(), which retains copy isolation.
+    """
     identifier(event_id, "event_id")
     if before is None:
         if kind != "INIT":
@@ -134,7 +171,7 @@ def reduce_event(before: dict | None, event_id: str, kind: str, data: dict) -> d
                 "manual_halt": False, "halt_reason": None, "quarantine": []}
     if type(kind) is not str or kind not in KINDS:
         raise ValueError("unsupported paper event")
-    state = copy.deepcopy(before)
+    state = before  # Private projection; discard it if any event fails.
     if kind == "HALT":
         fields(data, {"reason"})
         state.update(manual_halt=True, halt_reason=_reason(data["reason"]))
@@ -152,7 +189,7 @@ def reduce_event(before: dict | None, event_id: str, kind: str, data: dict) -> d
         fee = integer(data["fee_budget_cents"], "fee_budget_cents", zero=True)
         if oid in state["orders"]:
             raise ValueError("order_id already exists; retry its original event_id")
-        if state["quarantine"] or any(o["uncertain"] for o in state["orders"].values()):
+        if _needs_reconciliation(state):
             raise ValueError("account requires reconciliation; new intentions blocked")
         if sum(not o["settled"] for o in state["orders"].values()) >= 128:
             raise ValueError("too many unresolved paper orders")
@@ -191,6 +228,14 @@ def reduce_event(before: dict | None, event_id: str, kind: str, data: dict) -> d
     if kind == "TRANSMIT":
         if order["status"] != "NEW" or order["transmitted"]:
             raise ValueError("only a NEW intent can be marked transmitted; no auto-retry")
+        # Admission at SUBMIT is not a permanent licence: state may change
+        # while an intention is waiting to transmit. Do not block delivery of
+        # actual fills for orders that had ALREADY been transmitted.
+        if _needs_reconciliation(state):
+            raise ValueError("account requires reconciliation; transmission blocked")
+        if order["side"] == "BUY" and state["manual_halt"]:
+            raise ValueError("manual halt blocks staged entry transmission")
+        _invariants(state)
         order.update(status="PENDING_SUBMIT", transmitted=True)
     elif kind == "ACK":
         if not order["transmitted"]:
@@ -375,14 +420,24 @@ class PaperEventStore:
     @staticmethod
     def _load(db) -> tuple[dict, int, str]:
         state, count, previous = None, 0, ZERO_HASH
-        for seq, eid, at, text, prev, hashed in db.execute("SELECT * FROM events ORDER BY seq"):
+        for seq, eid, at, text, prev, hashed in db.execute(
+                "SELECT seq,event_id,recorded_at,payload_json,previous_hash,event_hash "
+                "FROM events ORDER BY seq"):
             count += 1
-            if count > MAX_EVENTS or seq != count or prev != previous or digest([seq, eid, at, text, prev]) != hashed:
-                raise IntegrityError("broken sequence or event hash chain")
-            payload = json.loads(text)
-            if canonical(payload) != text or set(payload) != {"kind", "data"}:
-                raise IntegrityError("noncanonical event envelope")
-            state = reduce_event(state, eid, payload["kind"], payload["data"])
+            try:
+                if (seq != count or prev != previous or
+                        digest([seq, eid, at, text, prev]) != hashed):
+                    raise IntegrityError("broken sequence or event hash chain")
+                if type(text) is not str or len(text.encode("utf-8")) > 65536:
+                    raise IntegrityError("invalid or oversized event envelope")
+                payload = json.loads(text)
+                if (type(payload) is not dict or set(payload) != {"kind", "data"}
+                        or canonical(payload) != text):
+                    raise IntegrityError("noncanonical event envelope")
+                _entry_capacity(state, payload["kind"], payload["data"], count - 1)
+                state = _apply_event(state, eid, payload["kind"], payload["data"])
+            except (ValueError, TypeError, KeyError, ArithmeticError, RecursionError) as exc:
+                raise IntegrityError(f"invalid stored event at sequence {count}: {exc}") from exc
             previous = hashed
         if state is None:
             raise IntegrityError("missing initialisation event")
@@ -410,8 +465,7 @@ class PaperEventStore:
                     result = self._receipt(state, count, prev)
                     result.update(duplicate=True, event_id=event_id, recorded_event_hash=old[1])
                 else:
-                    if count >= MAX_EVENTS:
-                        raise ValueError("event capacity reached; no implicit pruning")
+                    _entry_capacity(state, kind, data, count)
                     state = reduce_event(state, event_id, kind, data)
                     hashed = self._insert(db, count + 1, event_id, payload, prev)
                     result = self._receipt(state, count + 1, hashed)
@@ -426,14 +480,21 @@ class PaperEventStore:
     @staticmethod
     def _receipt(state: dict, count: int, head: str) -> dict:
         reserve, units = _reserved(state)
+        reasons = []
+        if state["manual_halt"]:
+            reasons.append("manual_halt")
+        if _needs_reconciliation(state):
+            reasons.append("unreconciled_state")
+        if count >= MAX_EVENTS:
+            reasons.append("event_admission_limit")
         return {"ok": not state["quarantine"], "mode": "paper_events", "engine": VERSION,
                 "live_authorized": False, "event_count": count, "head_hash": head,
                 "state_sha256": digest(state), "reserved_cash_cents": reserve,
                 "available_cash_cents": state["cash_cents"] - reserve,
                 "reserved_shares": units,
-                "requires_reconciliation": bool(state["quarantine"] or any(
-                    o["uncertain"] or (o["status"] in TERMINAL and not o["settled"])
-                    for o in state["orders"].values())), **state,
+                "requires_reconciliation": _needs_reconciliation(state),
+                "new_entries_allowed": not reasons, "entry_block_reasons": reasons,
+                "entry_admission_limit": MAX_EVENTS, **state,
                 "notes": "Explicit simulated fills; cash/cost basis are not marked-to-market NAV"}
 
     def status(self) -> dict:
