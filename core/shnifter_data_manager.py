@@ -298,7 +298,21 @@ class ShnifterDataManager:
     def get_trading_stats(self) -> Dict[str, Any]:
         """Get current trading statistics"""
         with self._lock:
-            return asdict(self.trading_stats)
+            result = asdict(self.trading_stats)
+            # Irregular trade returns do not produce a valid annualised Sharpe.
+            # The legacy SQLite schema requires a numeric placeholder, but API
+            # consumers must receive an explicit unavailable value.
+            result["sharpe_ratio"] = None
+            gross_losses = sum(-t.pnl for t in self.portfolio.closed_trades
+                               if t.pnl < 0)
+            if gross_losses == 0:
+                result["profit_factor"] = None
+            result["metric_notes"] = {
+                "sharpe_ratio": "unavailable: periodic dated NAV returns required",
+                "profit_factor": "gross wins / abs(gross losses); null if no losses",
+                "unrealized_pnl": "legacy prices may be stale or substituted",
+            }
+            return result
 
     def get_model_performance(self, model_name: Optional[str] = None) -> Dict[str, Any]:
         """Get model performance metrics"""
@@ -489,7 +503,8 @@ class ShnifterDataManager:
                 # not the ratio of *average* winning and losing trades.
                 profit_factor=(sum(t.pnl for t in winning_trades) /
                                abs(sum(t.pnl for t in losing_trades))
-                               if losing_trades else 0.0),
+                               if any(t.pnl < 0 for t in losing_trades)
+                               else 0.0),
                 active_positions=len(self.portfolio.get_open_trades()),
                 last_updated=datetime.now()
             )
@@ -498,18 +513,12 @@ class ShnifterDataManager:
             self._notify_stats_callbacks()
 
     def _calculate_sharpe_ratio(self) -> float:
-        """Calculate Sharpe ratio from trade returns"""
-        if not self.portfolio.closed_trades:
-            return 0.0
-        
-        returns = [t.pnl / abs(t.entry * t.size) for t in self.portfolio.closed_trades if t.entry * t.size != 0]
-        if not returns:
-            return 0.0
-        
-        avg_return = np.mean(returns)
-        std_return = np.std(returns)
-        
-        return (avg_return / std_return) if std_return != 0 else 0.0
+        """Legacy persistence placeholder only: no dated equity curve exists.
+
+        A trade-based mean/std ratio is NOT an annualised Sharpe ratio.
+        Public get_trading_stats() maps this legacy DB placeholder to None.
+        """
+        return 0.0
 
     def _trade_to_dict(self, trade: Trade) -> Dict[str, Any]:
         """Convert Trade object to dictionary"""
