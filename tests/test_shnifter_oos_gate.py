@@ -34,7 +34,7 @@ class OOSGateTests(unittest.TestCase):
         report=evaluate_oos(self.example,ticker='AAPL')
         self.assertEqual(len(report['folds']),3)
         self.assertFalse(report['summary']['live_authorized'])
-        self.assertEqual(report['engine'],'shnifter.oos-fold-evaluator.v1')
+        self.assertEqual(report['engine'],'shnifter.oos-fold-evaluator.v2')
         for fold in report['folds']:
             self.assertEqual(fold["prior_history_end_exclusive"], fold["validation"]["start"])
             self.assertLess(fold['validation']['end'],fold['test']['start'])
