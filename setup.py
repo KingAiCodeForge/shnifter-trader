@@ -28,7 +28,8 @@ setup(
                 "shnifter_agent_api", "shnifter_agent_mcp",
                 "shnifter_experiments", "shnifter_experiment_cli",
                 "shnifter_oos_gate", "shnifter_research_cli",
-                "shnifter_paper_ledger", "shnifter_paper_cli", "shnifter_safe_output"],
+                "shnifter_paper_ledger", "shnifter_paper_cli", "shnifter_safe_output",
+                "shnifter_order_events", "shnifter_order_events_cli"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Financial and Insurance Industry",
