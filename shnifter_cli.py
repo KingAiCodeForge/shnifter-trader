@@ -1,6 +1,6 @@
 """Shnifter Trader headless research CLI.
 
-Read-only analysis by default, with explicit local SQLite research archiving.
+Read-only analysis by default, with explicit local research/paper-account writes.
 Importing this module (including --help) does not load Qt, an LLM or a broker.
 """
 from __future__ import annotations
@@ -90,6 +90,8 @@ def build_parser() -> argparse.ArgumentParser:
     register_research(groups)
     from shnifter_paper_cli import register_paper
     register_paper(groups.add_parser("paper", help="Isolated SQLite simulation, NEVER live trading"))
+    from shnifter_order_events_cli import register_order_events
+    register_order_events(groups)
     return parser
 
 
@@ -194,14 +196,18 @@ def main(
     stdout=None,
     stderr=None,
 ) -> int:
-    """Return 0 for success, 1 for runtime errors, 2 for invalid date ranges.
+    """Dispatch research and explicit local paper-account commands.
 
-    A fetcher can be injected for deterministic offline testing. No broker,
-    simulated execution, GUI or LLM operation is reachable from these actions.
+    Exit 0 means operation completed, not live approval; 1 is a runtime error,
+    2 is invalid usage, and 3 is research rejection or unresolved quarantine.
+    Injected fetchers support offline tests. No live broker order is reachable.
     """
     args = build_parser().parse_args(argv)
     out = stdout if stdout is not None else sys.stdout
     err = stderr if stderr is not None else sys.stderr
+    if args.group == "paper-events":
+        from shnifter_order_events_cli import run_order_events
+        return run_order_events(args, stdout=out, stderr=err)
     if args.group == "backtest":
         from shnifter_backtest_cli import execute_backtest
         return execute_backtest(args, stdout=out, stderr=err)
