@@ -88,6 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
     register_experiment_cli(groups)
     from shnifter_research_cli import register_research
     register_research(groups)
+    from shnifter_paper_cli import register_paper
+    register_paper(groups.add_parser("paper", help="Isolated SQLite simulation, NEVER live trading"))
     return parser
 
 
@@ -209,6 +211,9 @@ def main(
     if args.group == "research":
         from shnifter_research_cli import run_research
         return run_research(args, stdout=out, stderr=err)
+    if args.group == "paper":
+        from shnifter_paper_cli import execute_paper
+        return execute_paper(args, stdout=out, stderr=err)
     if args.group in ("analysis", "actions"):
         from shnifter_agent_cli import run_action
         return run_action(args, stdout=out, stderr=err)
