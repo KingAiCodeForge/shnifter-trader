@@ -1,0 +1,65 @@
+{
+  "base_commit": "4dd97af0ca226dc1318524f25ea0aa2852b891cf",
+  "branch": "review/paper-event-lifecycle-20261017",
+  "ok": true,
+  "scope": "Explicit focused suites: research, existing paper ledger, new event lifecycle, runner",
+  "full_repository_suite": false,
+  "live_authorized": false,
+  "python": "3.13.5",
+  "packages": {
+    "pytest": "9.0.2",
+    "numpy": "2.3.5",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.8.0",
+    "fastapi": "0.128.2",
+    "httpx": "0.28.1"
+  },
+  "runner_command": "python tools/run_shnifter_focused_tests.py --suite focused --output-dir NEW_OUTPUT_DIRECTORY --expected-manifest docs/PAPER_EVENT_SOURCES.json",
+  "actual_pytest_summary": "170 passed, 93 subtests passed in 9.27s",
+  "passed_test_methods": 170,
+  "passed_subtests": 93,
+  "new_test_methods": 57,
+  "junit_cases_including_subtests": 263,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_hashes_matched": true,
+  "sources_unchanged_before_and_after_tests": true,
+  "uploaded_changed_source_git_blob_parity": {
+    "shnifter_order_events.py": "29072d6a92d5a2e2509f21f16eeba5b294094249",
+    "shnifter_order_events_cli.py": "946adcdc2b0fc738df87dde93f72ea11a2a8e940",
+    "shnifter_cli.py": "3f65b0ee8a005c25efde2c006922a2274f8ccc5d",
+    "setup.py": "cabda96348e8438e6dd6758cd9dfb90d34b1f18e",
+    "tests/test_shnifter_order_events.py": "eb746052666f1d25411149ea7d574707cca8dde9",
+    "tests/test_shnifter_order_events_cli.py": "c94bfde8edbb406572fcadf567e13873f6628d46",
+    "tools/run_shnifter_focused_tests.py": "7c002517a24bbd304919241fe53abdd0d0d2ce67",
+    "tests/test_shnifter_focused_runner.py": "e7e888dd6a093ac4d86af6d737baa1f0929ee77f"
+  },
+  "existing_paper_sources_verified_against_base_commit": {
+    "shnifter_paper_ledger.py": "3025fdf1b5375994cd29610d9fb3388632f9575f",
+    "tests/test_shnifter_paper_ledger.py": "5208d46c32b849d5595c3ea4a483e143cf3277fe",
+    "tests/test_shnifter_paper_cli.py": "ddb2cc50a260465931805a7dca3f8fa18f71cb2b"
+  },
+  "fault_scenarios_exercised": [
+    "Duplicate event and execution deliveries across restarts",
+    "Concurrent duplicate execution commits exactly once",
+    "Concurrent orders cannot oversubscribe reserved cash",
+    "Fill before acknowledgement and after cancellation acknowledgement",
+    "UNKNOWN state persists across cancellation until reconciliation",
+    "New contradictory terminal fill is quarantined",
+    "Missing/conflicting reconciliation executions do not invent balancing entries",
+    "Forced process death inside uncommitted SQLite transaction",
+    "Injected failure after INSERT before COMMIT rolls back",
+    "New process reconstructs matching cash, positions and state hash",
+    "CLI help and status work without GUI, broker or LLM imports",
+    "Runner rejects missing/changed sources, zero tests, skips and failures"
+  ],
+  "limitations": [
+    "Full git clone blocked by container DNS; assembled source subset, not full checkout",
+    "No full legacy GUI/risk-manager suite, installed distribution or Windows runtime test",
+    "No actual MCP host, network data feed, broker account or real-money execution",
+    "All fill data explicit simulation; no market matching or profitability evidence",
+    "Hash chains/triggers are not cryptographic authenticity against a filesystem owner",
+    "No power-loss, network-filesystem, broker settlement, correction or corporate-action test"
+  ]
+}
