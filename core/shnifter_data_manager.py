@@ -523,6 +523,7 @@ class ShnifterDataManager:
     def _trade_to_dict(self, trade: Trade) -> Dict[str, Any]:
         """Convert Trade object to dictionary"""
         return {
+            'trade_id': trade.trade_id,
             'ticker': trade.ticker,
             'entry_price': trade.entry,
             'exit_price': trade.exit,
