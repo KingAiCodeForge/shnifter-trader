@@ -281,8 +281,9 @@ class PnLDashboardPopout(QDialog):
             self.win_rate_value.setText(f"{win_rate:.1f}%")
             self.win_rate_bar.setValue(int(win_rate))
             
-            self.profit_factor_value.setText(f"{stats.get('profit_factor', 0):.2f}")
-            self.sharpe_ratio_value.setText(f"{stats.get('sharpe_ratio', 0):.2f}")
+            pf = stats.get('profit_factor')
+            self.profit_factor_value.setText(f"{pf:.2f}" if pf is not None else "N/A")
+            self.sharpe_ratio_value.setText("N/A — daily NAV required")
             
             max_dd = stats.get('max_drawdown', 0)
             self.max_drawdown_value.setText(f"{max_dd:.1f}%")
@@ -292,101 +293,30 @@ class PnLDashboardPopout(QDialog):
             active_positions = stats.get('active_positions', 0)
             self.position_size_value.setText(f"{active_positions} positions")
             
-            risk_per_trade = 2.0  # Default 2% risk per trade
-            self.risk_per_trade_value.setText(f"{risk_per_trade:.1f}%")
-            
-            exposure = min(active_positions * 20, 100)  # Cap at 100%
-            self.exposure_value.setText(f"{exposure:.1f}%")
-            self.exposure_bar.setValue(int(exposure))
+            self.risk_per_trade_value.setText("N/A")
+            self.exposure_value.setText("N/A")
+            self.exposure_bar.setValue(0)
             
         except Exception as e:
-            EventLog.emit("WARNING", f"PnL stats update error: {e}")
-            # Fall back to mock data if real data fails
-            self.update_stats_with_mock_data()
-        
-        self.var_value.setText(f"${stats.get('var_95', 0):,.2f}")
+            EventLog.emit("ERROR", f"PnL stats unavailable: {e}")
+            for card in (self.balance_card, self.unrealized_card,
+                         self.realized_card, self.total_card):
+                card.value_label.setText("N/A")
+            self.profit_factor_value.setText("N/A")
+            self.sharpe_ratio_value.setText("N/A")
+        self.var_value.setText("N/A")
 
     def update_charts(self):
-        """Update the PnL charts with improved error handling"""
+        """Do not fabricate historical NAV or daily returns."""
         try:
-            # Generate mock PnL history if no real data
-            if len(self.pnl_history) < 100:
-                self.generate_mock_pnl_history()
-            
-            # Create PnL chart
-            fig = make_subplots(
-                rows=2, cols=1,
-                shared_xaxes=True,
-                vertical_spacing=0.1,
-                subplot_titles=('Portfolio P&L Over Time', 'Daily Returns'),
-                row_heights=[0.7, 0.3]
+            fig = go.Figure()
+            fig.add_annotation(
+                text="Verified dated NAV history unavailable",
+                showarrow=False, x=0.5, y=0.5, xref="paper", yref="paper",
             )
-            
-            # Extract P&L values and dates
-            dates = [datetime.now() - timedelta(days=i) for i in range(len(self.pnl_history))]
-            dates.reverse()
-            
-            # Ensure pnl_history contains numeric values
-            pnl_values = [float(val) if val is not None else 0 for val in self.pnl_history]
-            
-            # P&L line chart
-            fig.add_trace(
-                go.Scatter(
-                    x=dates,
-                    y=pnl_values,
-                    mode='lines+markers',
-                    name='P&L',
-                    line=dict(color='#4CAF50', width=2),
-                    marker=dict(size=4)
-                ),
-                row=1, col=1
-            )
-            
-            # Daily returns - handle empty or insufficient data
-            if len(pnl_values) > 1:
-                returns = [0] + [pnl_values[i] - pnl_values[i-1] 
-                                for i in range(1, len(pnl_values))]
-            else:
-                returns = [0]
-            
-            colors = ['green' if r >= 0 else 'red' for r in returns]
-            
-            fig.add_trace(
-                go.Bar(
-                    x=dates,
-                    y=returns,
-                    name='Daily Return',
-                    marker_color=colors
-                ),
-                row=2, col=1
-            )
-            
-            fig.update_layout(
-                title="Portfolio Performance Dashboard",
-                xaxis_title="Date",
-                yaxis_title="P&L ($)",
-                xaxis2_title="Date",
-                yaxis2_title="Daily Return ($)",
-                showlegend=False,
-                height=400
-            )
-            
             self.pnl_chart.update_figure(fig)
-            
-        except Exception as e:
-            EventLog.emit("ERROR", f"Chart update failed: {e}")
-            # Create a simple error chart
-            try:
-                error_fig = go.Figure()
-                error_fig.add_annotation(
-                    text=f"Chart Error: {str(e)[:100]}...",
-                    showarrow=False,
-                    x=0.5, y=0.5,
-                    xref="paper", yref="paper"
-                )
-                self.pnl_chart.update_figure(error_fig)
-            except:
-                pass  # If even error display fails, just continue
+        except Exception as exc:
+            EventLog.emit("ERROR", f"P&L chart unavailable: {exc}")
 
     def update_trade_history(self):
         """Update trade history table with real data"""
@@ -441,8 +371,8 @@ class PnLDashboardPopout(QDialog):
         
         except Exception as e:
             EventLog.emit("WARNING", f"Trade history update error: {e}")
-            # Fall back to mock data if real data fails
-            self.update_trade_history_with_mock_data()
+            # Never present invented trades as recovered account history.
+            self.trades_table.setRowCount(0)
 
     def generate_mock_stats(self):
         """Generate mock statistics for demo purposes"""
@@ -552,8 +482,10 @@ class PnLDashboardPopout(QDialog):
             self.win_rate_value.setText(f"{win_rate:.1f}%")
             self.win_rate_bar.setValue(int(win_rate))
             
-            self.profit_factor_value.setText(f"{stats_data.get('profit_factor', 0):.2f}")
-            self.sharpe_ratio_value.setText(f"{stats_data.get('sharpe_ratio', 0):.2f}")
+            checked_stats = data_manager.get_trading_stats()
+            pf = checked_stats.get('profit_factor')
+            self.profit_factor_value.setText(f"{pf:.2f}" if pf is not None else "N/A")
+            self.sharpe_ratio_value.setText("N/A — daily NAV required")
             
             max_dd = stats_data.get('max_drawdown', 0)
             self.max_drawdown_value.setText(f"{max_dd:.1f}%")
@@ -563,14 +495,10 @@ class PnLDashboardPopout(QDialog):
             active_positions = stats_data.get('active_positions', 0)
             self.position_size_value.setText(f"{active_positions} positions")
             
-            # Calculate risk per trade as percentage of total portfolio
-            risk_per_trade = 2.0  # Default 2% risk per trade
-            self.risk_per_trade_value.setText(f"{risk_per_trade:.1f}%")
-            
-            # Calculate exposure based on active positions
-            exposure = min(active_positions * 20, 100)  # Cap at 100%
-            self.exposure_value.setText(f"{exposure:.1f}%")
-            self.exposure_bar.setValue(int(exposure))
+            # Position count does not establish real capital exposure.
+            self.risk_per_trade_value.setText("N/A")
+            self.exposure_value.setText("N/A")
+            self.exposure_bar.setValue(0)
             
             # Update PnL history for charting - store just the numeric value
             self.pnl_history.append(total_pnl)
@@ -597,4 +525,4 @@ class PnLDashboardPopout(QDialog):
             return data_manager.get_trading_stats()
         except Exception as e:
             EventLog.emit("WARNING", f"Could not get real trading stats: {e}")
-            return self.generate_mock_stats()
+            return {}
