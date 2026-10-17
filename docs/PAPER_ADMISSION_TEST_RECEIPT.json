@@ -1,0 +1,60 @@
+{
+  "base_commit": "d11172cfdd2875927179f69c505e270521e46492",
+  "scope": "Assembled offline research/paper source subset, including PR11 lifecycle and new boundary regressions",
+  "full_repository_suite": false,
+  "live_authorized": false,
+  "python": "3.13.5",
+  "packages": {"pytest": "9.0.2", "numpy": "2.3.5", "pandas": "2.2.3", "scikit-learn": "1.8.0", "fastapi": "0.128.2", "httpx": "0.28.1"},
+  "command": "python tools/run_shnifter_focused_tests.py --suite focused --output-dir NEW_DIRECTORY --expected-manifest docs/PAPER_ADMISSION_SOURCES.json",
+  "ok": true,
+  "passed_test_methods": 197,
+  "passed_subtests": 99,
+  "new_test_methods": 27,
+  "junit_cases_including_subtests": 296,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "pytest_summary": "197 passed, 99 subtests passed in 8.65s",
+  "expected_source_hashes_matched": true,
+  "sources_unchanged_before_and_after_run": true,
+  "changed_code_source_parity": {
+    "shnifter_order_events.py": {"git_blob_sha1": "e5854bd5b5badb9aaaa6a38bb4f59f4a2a39e82e", "sha256": "da4298d2b732223b031f9035f5a780be9e24ce4f3cd7da58cd3a1058659b1128", "bytes": 25547},
+    "tests/test_shnifter_lifecycle_boundaries.py": {"git_blob_sha1": "30a81fc5c9d29e5fd45f464ecd8b42f6ab6e8bdc", "sha256": "43715a3cf6a439d4d7f410232b266f394691585719eb48105fc539604ec10805", "bytes": 14538},
+    "tools/run_shnifter_focused_tests.py": {"git_blob_sha1": "23cae2b3ba9aa090a2e30adad6c08d1bf3dc7d37", "sha256": "c66d0ae7d669bf1973a9f129a27485a8aa4762895e94310af8f3d8f0e197f08a", "bytes": 6507}
+  },
+  "reproduced_before_fix": [
+    "Staged BUY can TRANSMIT after HALT",
+    "Staged order can TRANSMIT during UNKNOWN, quarantine or unreconciled terminal state",
+    "New SUBMIT allowed despite cancelled/rejected sent order awaiting reconciliation",
+    "Event limit prevents HALT, FILL and cancellation",
+    "Malformed canonical null envelope raises raw TypeError",
+    "Replay deep-copies the full growing account once per stored event"
+  ],
+  "capacity_test_note": "Same production branch logic exercised with reduced MAX_EVENTS values; not a full 10000-event stress run",
+  "microbenchmark": {
+    "scope": "Synthetic status/replay only; not full application/broker latency",
+    "events": 501,
+    "orders": 250,
+    "repetitions_per_version": 5,
+    "before_seconds": [0.4152906130000247, 0.40641722400005165, 0.41310077599996475, 0.4223560409999436, 0.4124096330000384],
+    "after_seconds": [0.013806660999989617, 0.014364206000095692, 0.01440900199997941, 0.014381351999986691, 0.015636198999914086],
+    "before_median_seconds": 0.41310077599996475,
+    "after_median_seconds": 0.014381351999986691,
+    "median_speedup_in_this_fixture": 28.724752443327098,
+    "identical_reconstructed_state_sha256": "f0f9fa2f422dbe7b688d29b629304247f53493bea78efe86c1af9447790d3449"
+  },
+  "unresolved_verified_limitation": {
+    "scenario": "Privileged rollback fixture removes final HALT; remaining valid prefix verifies",
+    "before_manual_halt": true,
+    "after_manual_halt": false,
+    "fix_status": "NOT FIXED; trusted external checkpoint/restore validation required"
+  },
+  "limitations": [
+    "GitHub clone failed DNS; source subset used instead of a full checkout",
+    "No full GUI, Windows, installed wheel, actual MCP host or legacy risk-manager run",
+    "No broker, quote feed, live execution, market-matching or profitability test",
+    "v2 deliberately refuses v1 databases; no migration was added",
+    "Hash chain cannot prove freshness against valid-prefix rollback without external evidence",
+    "Full replay still grows with history; admission cap allows cleanup records beyond 10000"
+  ]
+}
