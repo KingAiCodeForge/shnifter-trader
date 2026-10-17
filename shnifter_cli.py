@@ -86,6 +86,8 @@ def build_parser() -> argparse.ArgumentParser:
     register_actions(groups)
     from shnifter_experiment_cli import register_experiment_cli
     register_experiment_cli(groups)
+    from shnifter_research_cli import register_research
+    register_research(groups)
     return parser
 
 
@@ -204,6 +206,9 @@ def main(
     if args.group == "experiments":
         from shnifter_experiment_cli import run_experiment_cli
         return run_experiment_cli(args, stdout=out, stderr=err)
+    if args.group == "research":
+        from shnifter_research_cli import run_research
+        return run_research(args, stdout=out, stderr=err)
     if args.group in ("analysis", "actions"):
         from shnifter_agent_cli import run_action
         return run_action(args, stdout=out, stderr=err)
