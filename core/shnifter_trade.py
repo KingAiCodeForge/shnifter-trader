@@ -10,6 +10,7 @@ class Trade:
         self.take_profit = take_profit
         self.status = status  # 'open' or 'closed'
         self.exit = None
+        self.trade_id = None  # Stable SQLite row ID for legacy simulated-account rows
         self.pnl = 0
         self.direction = 'long'  # or 'short', can be extended
         self.open_time = None
