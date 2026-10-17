@@ -44,6 +44,10 @@ def register_backtest(parser: argparse.ArgumentParser) -> None:
     command.add_argument('--take-profit-pct', type=_decimal, default=Decimal('0.10'))
     command.add_argument('--fee-bps', type=_decimal, default=Decimal('10'))
     command.add_argument('--slippage-bps', type=_decimal, default=Decimal('5'))
+    command.add_argument('--registry-db', type=Path,
+                         help='Explicitly record a verified replay in a separate SQLite file')
+    command.add_argument('--declared-source', default='unverified',
+                         help='Unverified user-supplied data provenance label')
     command.add_argument('--output', type=Path, help='JSON report output path')
     command.add_argument('--overwrite', action='store_true',
                          help='Explicitly replace existing output file')
@@ -55,7 +59,18 @@ def execute_backtest(args, *, stdout=None, stderr=None) -> int:
     if args.overwrite and args.output is None:
         print('error: --overwrite requires --output', file=err)
         return 2
+    if args.registry_db is None and args.declared_source != 'unverified':
+        print('error: --declared-source requires --registry-db', file=err)
+        return 2
     try:
+        # Check for collisions BEFORE creating a new registry or report.
+        if args.output is not None and args.output.exists() and not args.overwrite:
+            raise FileExistsError(f'report exists: {args.output} (add --overwrite)')
+        if args.registry_db is not None:
+            if args.csv.resolve() == args.registry_db.resolve():
+                raise ValueError('registry cannot be the historical source CSV')
+            if args.output is not None and args.output.resolve() == args.registry_db.resolve():
+                raise ValueError('registry and JSON output must have different paths')
         from shnifter_replay import ReplayConfig, load_csv, run_replay
 
         config = ReplayConfig(
@@ -68,7 +83,13 @@ def execute_backtest(args, *, stdout=None, stderr=None) -> int:
         ticker = args.ticker.strip().upper()
         if not re.fullmatch(r'[A-Z0-9^][A-Z0-9.^_=-]{0,31}', ticker):
             raise ValueError('ticker must be a single symbol of at most 32 characters')
-        result = run_replay(load_csv(args.csv), config, ticker=ticker)
+        bars = load_csv(args.csv)
+        result = run_replay(bars, config, ticker=ticker)
+        if args.registry_db is not None:
+            from shnifter_experiments import record_replay
+            recorded = record_replay(args.registry_db, bars=bars, report=result,
+                                     declared_source=args.declared_source)
+            print(f"Experiment registered: {recorded['experiment_id']}", file=err)
         output = json.dumps(result, indent=2, allow_nan=False) + '\n'
         if args.output is None:
             out.write(output)
