@@ -66,6 +66,10 @@ def register_research(subparsers) -> None:
     gate.add_argument("--max-test-drawdown-pct", type=decimal_arg, default=Decimal("20"))
     gate.add_argument("--candidates", type=parse_pairs,
                       default=((5,20),(10,30),(20,50),(20,100)))
+    gate.add_argument("--summary-only", action="store_true",
+                      help="Omit fold detail from JSON; decisions and identifiers are unchanged")
+    gate.add_argument("--fail-on-rejection", action="store_true",
+                      help="Return exit 3 when screening rejects the candidate (not a runtime error)")
     gate.add_argument("--output", type=Path)
     gate.add_argument("--overwrite", action="store_true")
 
@@ -80,6 +84,9 @@ def run_research(args, *, stdout=None, stderr=None) -> int:
         print("--overwrite requires --output", file=err)
         return 2
     try:
+        from shnifter_safe_output import validate_output, atomic_write_text
+        if args.output is not None:
+            validate_output(args.output, overwrite=args.overwrite, protected=(args.csv,))
         from shnifter_replay import load_csv
         from shnifter_oos_gate import evaluate_oos, GatePolicy
         policy = GatePolicy(
@@ -96,17 +103,21 @@ def run_research(args, *, stdout=None, stderr=None) -> int:
         if not re.fullmatch(r"[A-Z0-9^][A-Z0-9.^_=-]{0,31}",ticker):
             raise ValueError("ticker must be a valid single symbol")
         report = evaluate_oos(load_csv(args.csv), ticker=ticker, policy=policy)
+        if args.summary_only:
+            report = {key: value for key, value in report.items() if key != "folds"}
+            report["detail_level"] = "summary"
         data = json.dumps(report, indent=2, allow_nan=False) + "\n"
         if args.output is None:
             out.write(data)
         else:
-            if args.csv.resolve()==args.output.resolve():
-                raise ValueError("output must not overwrite source CSV")
-            with args.output.open("w" if args.overwrite else "x", encoding="utf-8") as fh:
-                fh.write(data)
+            atomic_write_text(args.output, data, overwrite=args.overwrite,
+                              protected=(args.csv,))
             out.write(json.dumps({"ok":True,"output":str(args.output),
+                                  "evaluation_id":report["evaluation_id"],
                                   "paper_candidate":report["summary"]["paper_research_candidate"],
                                   "live_authorized":False})+"\n")
+        if args.fail_on_rejection and not report["summary"]["paper_research_candidate"]:
+            return 3
         return 0
     except (ValueError, ArithmeticError, OSError) as exc:
         print(f"shnifter-trader: research gate failed: {exc}", file=err)
