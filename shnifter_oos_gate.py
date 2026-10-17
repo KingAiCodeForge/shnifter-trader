@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import re
 import statistics
 from dataclasses import asdict, dataclass
@@ -98,7 +97,7 @@ def _profit_factor(trades: list[dict]) -> float | None:
     return round(wins / losses, 5) if losses > 0 else None
 
 
-def _ann_sharpe(report: dict, warmup: int) -> float | None:
+def _per_bar_risk_ratio(report: dict, warmup: int) -> float | None:
     curve = report["equity_curve"][warmup:]
     previous = report["initial_cash"]
     daily = []
@@ -111,7 +110,7 @@ def _ann_sharpe(report: dict, warmup: int) -> float | None:
     if len(daily) < 50:
         return None
     std = statistics.stdev(daily)
-    return round(statistics.mean(daily) / std * math.sqrt(252), 5) if std > 0 else None
+    return round(statistics.mean(daily) / std, 5) if std > 0 else None
 
 
 def _summary(report: dict, warmup: int) -> dict:
@@ -120,7 +119,7 @@ def _summary(report: dict, warmup: int) -> dict:
             "closed_trades": report["completed_trades"],
             "fills": len(report["fills"]),
             "profit_factor": _profit_factor(report["trades"]),
-            "annualised_sharpe_estimate": _ann_sharpe(report, warmup),
+            "mean_over_std_per_bar_not_annualised": _per_bar_risk_ratio(report, warmup),
             "open_position_at_end": report["open_position"] is not None,
             "run_id": report["run_id"]}
 
@@ -236,7 +235,7 @@ def evaluate_oos(bars: Iterable[Bar], *, ticker: str, policy: GatePolicy | None 
             "One stock and one strategy family cannot establish robust live alpha",
             "No split/dividend/FX/borrow/liquidity/margin/broker partial-fill handling",
             "Each fold restarts flat; fold returns are not one continuous portfolio NAV",
-            "Sharpe is a zero-risk-free daily mark-to-market estimate on simulated folds",
+            "Per-bar mean/std is unannualised; no verified exchange calendar or risk-free series",
             "All performance figures are backtests, never real or guaranteed",
         ]}
     return report
