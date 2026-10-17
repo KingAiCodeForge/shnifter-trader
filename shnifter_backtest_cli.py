@@ -63,14 +63,14 @@ def execute_backtest(args, *, stdout=None, stderr=None) -> int:
         print('error: --declared-source requires --registry-db', file=err)
         return 2
     try:
-        # Check for collisions BEFORE creating a new registry or report.
-        if args.output is not None and args.output.exists() and not args.overwrite:
-            raise FileExistsError(f'report exists: {args.output} (add --overwrite)')
+        from shnifter_safe_output import validate_output, atomic_write_text
+        protected = [args.csv]
         if args.registry_db is not None:
-            if args.csv.resolve() == args.registry_db.resolve():
-                raise ValueError('registry cannot be the historical source CSV')
-            if args.output is not None and args.output.resolve() == args.registry_db.resolve():
-                raise ValueError('registry and JSON output must have different paths')
+            validate_output(args.registry_db, overwrite=True, protected=(args.csv,))
+            protected.extend([args.registry_db, str(args.registry_db) + '-wal',
+                              str(args.registry_db) + '-shm'])
+        if args.output is not None:
+            validate_output(args.output, overwrite=args.overwrite, protected=protected)
         from shnifter_replay import ReplayConfig, load_csv, run_replay
 
         config = ReplayConfig(
@@ -94,9 +94,8 @@ def execute_backtest(args, *, stdout=None, stderr=None) -> int:
         if args.output is None:
             out.write(output)
         else:
-            mode = 'w' if args.overwrite else 'x'
-            with args.output.open(mode, encoding='utf-8') as fh:
-                fh.write(output)
+            atomic_write_text(args.output, output, overwrite=args.overwrite,
+                              protected=protected)
             out.write(json.dumps({
                 'ok': True, 'action': 'backtest.run',
                 'path': str(args.output), 'run_id': result['run_id'],
