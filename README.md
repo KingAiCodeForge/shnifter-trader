@@ -251,3 +251,30 @@ independently permissioned component.
 **Validation:** Local synthetic tests cover CLI, HTTP authentication, signal
 logic and the replay dispatcher. Full GUI, installed-wheel and MCP SDK host
 integration tests are not yet complete. Profitability is unproven.
+
+
+## Legacy risk/accounting safety changes (review branch)
+
+The experimental legacy simulated-account manager is being hardened before
+any autonomous order execution. This branch adds strict risk sizing, projected
+exposure checks, a non-resetting daily risk halt, exact SQLite trade IDs,
+transaction-first simulated trade updates and read-only network retries.
+It also removes automatic random portfolio performance fallbacks in the
+PnL dashboard. **The existing legacy risk manager refuses all order
+approvals unless an independently reconciled position snapshot is present.**
+
+Research signals are still NOT executable trades. Neither this branch nor
+the paper-ledger prototype connects to a live broker. Existing historical
+data, cached bid/ask estimates, full PySide6 startup, live market feeds,
+partial fills and real account reconciliation remain unverified.
+
+Run the focused local tests from a full checkout:
+
+```bash
+python -m unittest discover -s tests -p 'test_shnifter_safe_risk_math.py' -v
+python -m unittest discover -s tests -p 'test_shnifter_legacy_safety.py' -v
+```
+
+See [Legacy Risk and Accounting Hardening](docs/LEGACY_RISK_ACCOUNTING_HARDENING_2026-10-17.md)
+for scope, proof and outstanding blockers. Tests must pass in an integrated
+environment before any release or merge.
