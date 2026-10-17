@@ -278,3 +278,34 @@ python -m unittest discover -s tests -p 'test_shnifter_legacy_safety.py' -v
 See [Legacy Risk and Accounting Hardening](docs/LEGACY_RISK_ACCOUNTING_HARDENING_2026-10-17.md)
 for scope, proof and outstanding blockers. Tests must pass in an integrated
 environment before any release or merge.
+
+
+## Research-only out-of-sample profitability screening
+
+This experimental branch unifies the safe research, risk-helper, experiment-
+registry and isolated SQLite paper-account modules. It does **not** contain
+an authorised live broker or an established profitable trading strategy.
+
+To test a fixed set of SMA strategies using chronological validation, held-out
+future bars, matched buy-and-hold allocation, and explicit transaction-cost
+stress:
+
+    python shnifter_cli.py research gate --csv daily.csv --ticker AAPL --folds 3 --candidates 5:20,10:30,20:50,20:100 --fee-bps 10 --slippage-bps 5 --stress-multiplier 2 --output research_report.json
+
+The JSON report records rejected candidates as well as positive-looking
+backtests and always returns live_authorized=false. It can flag a strategy
+for **further paper research**, never live authorisation. The evaluator is
+a single-symbol SMA research tool; it does not verify quotes, dividends,
+survivorship, fees, market impact, broker fills or point-in-time data.
+
+Isolated paper-account CLI commands are also available:
+
+    python shnifter_cli.py paper init --db paper_research.sqlite
+    python shnifter_cli.py paper status --db paper_research.sqlite
+    python shnifter_cli.py paper halt --db paper_research.sqlite --reason "Operator pause"
+
+These do not submit real orders or use authenticated quotes. Do not use
+the existing legacy trading SQLite database as the isolated paper ledger.
+
+See docs/PROFITABILITY_EVIDENCE_GATE_2026-10-17.md for validation assumptions
+and the remaining real-money release conditions.
