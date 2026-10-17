@@ -26,7 +26,8 @@ setup(
     py_modules=["shnifter_cli", "shnifter_replay", "shnifter_backtest_cli",
                 "shnifter_analysis_core", "shnifter_actions", "shnifter_agent_cli",
                 "shnifter_agent_api", "shnifter_agent_mcp",
-                "shnifter_experiments", "shnifter_experiment_cli"],
+                "shnifter_experiments", "shnifter_experiment_cli",
+                "shnifter_oos_gate", "shnifter_research_cli"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Financial and Insurance Industry",
