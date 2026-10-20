@@ -1,0 +1,33 @@
+# Only the explicitly packaged research code and its tests/docs are eligible.
+prune shnifter_platform_core
+prune shnifter_frontend
+prune shnifter_analysis_modules
+prune llm_manager
+prune assets
+prune data
+prune evidence
+prune .venv
+prune tests/shnifter_integration_tests
+exclude Multi_Model_Trading_Bot.py
+exclude llm_config.json
+exclude pytest_output.txt
+exclude SHNIFTER_EVENT_WIRING_REPORT.json
+exclude SHNIFTER_TEST_ENHANCEMENT_PLAN.json
+recursive-exclude * __pycache__ *.pyc *.db *.sqlite *.sqlite3 *.log
+recursive-exclude core *.py
+recursive-exclude providers *.py
+recursive-exclude shnifterBB *.py
+include core/data_models.py
+include providers/yfinance_provider.py
+include shnifterBB/shnifter_bb.py
+include pyproject.toml
+include docs/PACKAGING_AND_PUBLIC_AUDIT_2026-10-20.md
+include docs/PAPER_CHECKPOINT_AND_V2_2026-10-20.md
+include tools/run_shnifter_focused_tests.py
+exclude tests/test_shnifter_core.py
+exclude tests/test_shnifter_legacy_safety.py
+exclude tests/test_shnifter_portability.py
+exclude tests/test_shnifter_risk_fail_closed.py
+exclude tests/test_shnifter_risk_sizing.py
+exclude tests/test_shnifter_safe_risk_math.py
+exclude tests/test_shnifter_table_widget.py

@@ -174,77 +174,45 @@ class ExchangeClient(ABC):
         pass
 
 class RateLimiter:
+    """Bounded, read-only retry helper. Never retry order side effects.
+
+    A timeout from a broker submission has an *unknown* execution outcome.
+    Reconcile client-order IDs and broker state before any further action.
     """
-    Exponential backoff rate limiter for API calls.
-    Prevents overwhelming exchange APIs and handles temporary failures gracefully.
-    """
-    
+
+    _READ_PREFIXES = ("get_", "fetch_", "list_", "read_", "query_")
+    _DENY_NAMES = ("submit", "place", "create", "cancel", "update",
+                   "delete", "execute", "modify", "close", "liquidate")
+
     def __init__(self, max_retries: int = 5, base_delay: float = 1.0):
-        """
-        Initialize rate limiter with configurable retry parameters.
-        
-        Args:
-            max_retries: Maximum number of retry attempts
-            base_delay: Base delay in seconds for exponential backoff
-        """
+        import math
+        if (type(max_retries) is not int or not 1 <= max_retries <= 10 or
+                not isinstance(base_delay, (int, float)) or
+                not math.isfinite(base_delay) or base_delay < 0):
+            raise ValueError("invalid read-only retry configuration")
         self.max_retries = max_retries
-        self.base_delay = base_delay
-        self.retry_counts = {}  # Track retry counts per function
-        
-        logger.info(f"Rate limiter initialized: max_retries={max_retries}, base_delay={base_delay}")
-        
+        self.base_delay = float(base_delay)
+        self.retry_counts = {}
+
     async def execute_with_backoff(self, func: Callable, *args, **kwargs):
-        """
-        Execute function with exponential backoff on failure.
-        Implements intelligent retry logic with jitter to prevent thundering herd.
-        
-        Args:
-            func: Function to execute with retry logic
-            *args: Positional arguments for function
-            **kwargs: Keyword arguments for function
-            
-        Returns:
-            Function result on success
-            
-        Raises:
-            Exception: If max retries exceeded
-        """
-        func_name = func.__name__
-        retries = 0
-        
-        logger.debug(f"Executing {func_name} with backoff protection")
-        
-        while retries < self.max_retries:
+        """Retry safe *reads* only, never submit/cancel/position modifications."""
+        name = getattr(func, "__name__", "").lower()
+        if (not name.startswith(self._READ_PREFIXES) or
+                any(word in name for word in self._DENY_NAMES)):
+            raise ValueError(
+                "Retries are forbidden for state-changing/unknown calls; "
+                "broker order uncertainty requires reconciliation"
+            )
+        for attempt in range(self.max_retries):
             try:
-                result = await func(*args, **kwargs)
-                
-                # Reset retry count on success
-                if func_name in self.retry_counts:
-                    del self.retry_counts[func_name]
-                    
-                logger.debug(f"Successfully executed {func_name}")
-                return result
-                
-            except Exception as e:
-                retries += 1
-                self.retry_counts[func_name] = retries
-                
-                logger.warning(f"Attempt {retries}/{self.max_retries} failed for {func_name}: {e}")
-                
-                if retries >= self.max_retries:
-                    error_msg = f"Max retries exceeded for {func_name}"
-                    logger.error(error_msg)
-                    EventLog.emit("ERROR", error_msg)
-                    raise Exception(error_msg)
-                    
-                # Calculate delay with jitter
-                delay = self.base_delay * (2 ** (retries - 1))
-                jitter = delay * 0.1 * (0.5 - asyncio.get_event_loop().time() % 1)
-                delay += jitter
-                
-                logger.info(f"Retrying {func_name} in {delay:.2f} seconds...")
-                EventLog.emit("INFO", f"Retrying {func_name} in {delay:.2f} seconds...")
+                response = await func(*args, **kwargs)
+                self.retry_counts.pop(name, None)
+                return response
+            except (ConnectionError, TimeoutError, OSError):
+                self.retry_counts[name] = attempt + 1
+                if attempt + 1 >= self.max_retries:
+                    raise
+                delay = self.base_delay * (2 ** attempt)
+                logger.warning("Read %s failed; retrying in %.2fs", name, delay)
                 await asyncio.sleep(delay)
-                
-        # This should never be reached due to the raise above
-        raise Exception(f"Failed to execute {func_name} after {self.max_retries} attempts")
+        raise RuntimeError("Unreachable retry state")

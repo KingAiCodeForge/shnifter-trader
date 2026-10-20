@@ -11,6 +11,7 @@ backend trading logic to frontend components. It manages:
 
 import json
 import sqlite3
+from contextlib import closing
 import threading
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Callable
@@ -18,6 +19,7 @@ from dataclasses import dataclass, asdict
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from shnifter_paths import data_directory
 
 from core.shnifter_trade import Trade, Portfolio
 from core.events import EventLog
@@ -84,9 +86,9 @@ class ShnifterDataManager:
     Manages trading stats, model performance, market data, and notifications.
     """
     
-    def __init__(self, db_path: str = "data/shnifter_trading.db"):
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(exist_ok=True)
+    def __init__(self, db_path: str = None):
+        self.db_path = Path(db_path) if db_path is not None else data_directory() / "legacy_simulation.db"
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Thread safety
         self._lock = threading.RLock()
@@ -123,7 +125,7 @@ class ShnifterDataManager:
 
     def _init_database(self):
         """Initialize SQLite database for persistent storage"""
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS trades (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,7 +187,7 @@ class ShnifterDataManager:
     def _load_data(self):
         """Load existing data from database"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 # Load recent trading stats
                 stats_df = pd.read_sql_query(
                     "SELECT * FROM trading_stats ORDER BY timestamp DESC LIMIT 1",
@@ -229,9 +231,10 @@ class ShnifterDataManager:
                         last_updated=datetime.now()
                     )
                 
-                # Load recent trades
+                # Load every open/closed row. LIMIT 100 previously hid old
+                # open positions after a restart and understated exposure.
                 trades_df = pd.read_sql_query(
-                    "SELECT * FROM trades ORDER BY created_at DESC LIMIT 100",
+                    "SELECT * FROM trades ORDER BY id ASC",
                     conn
                 )
                 for _, row in trades_df.iterrows():
@@ -243,20 +246,41 @@ class ShnifterDataManager:
                         take_profit=row['take_profit'],
                         status=row['status']
                     )
+                    trade.trade_id = int(row['id'])
                     trade.exit = row['exit_price']
                     trade.pnl = row['pnl']
                     trade.direction = row['direction']
                     trade.confidence = row['confidence']
-                    trade.open_time = row['open_time']
-                    trade.close_time = row['close_time']
-                    
+                    trade.open_time = (datetime.fromisoformat(str(row['open_time']))
+                                       if pd.notnull(row['open_time']) else None)
+                    trade.close_time = (datetime.fromisoformat(str(row['close_time']))
+                                        if pd.notnull(row['close_time']) else None)
                     if trade.status == 'open':
                         self.portfolio.add_trade(trade)
+                    elif trade.status == 'closed':
+                        self.portfolio.closed_trades.append(trade)
                     else:
-                        self.trade_history.append(trade)
+                        raise ValueError(f"unknown persisted trade state: {trade.status}")
+
+                # Reconstruct realised simulated balance and peak from all
+                # closed rows; the legacy schema lacks periodic NAV marks.
+                running = float(self.portfolio.balance)
+                peak = running
+                max_dd = 0.0
+                for trade in sorted(self.portfolio.closed_trades,
+                                    key=lambda t: (t.close_time or datetime.min,
+                                                   t.trade_id or 0)):
+                    running += float(trade.pnl)
+                    peak = max(peak, running)
+                    if peak > 0:
+                        max_dd = max(max_dd, (peak - running) / peak)
+                self.portfolio.balance = running
+                self.portfolio.peak_balance = peak
+                self.portfolio.max_drawdown = max_dd
         
         except Exception as e:
-            EventLog.emit("WARNING", f"Could not load existing data: {e}")
+            EventLog.emit("ERROR", f"Legacy ledger hydration failed: {e}")
+            raise RuntimeError("Legacy simulated ledger cannot safely hydrate") from e
 
     def register_stats_callback(self, callback: Callable):
         """Register callback for trading stats updates"""
@@ -276,20 +300,36 @@ class ShnifterDataManager:
     def get_trading_stats(self) -> Dict[str, Any]:
         """Get current trading statistics"""
         with self._lock:
-            return asdict(self.trading_stats)
+            result = asdict(self.trading_stats)
+            # Irregular trade returns do not produce a valid annualised Sharpe.
+            # The legacy SQLite schema requires a numeric placeholder, but API
+            # consumers must receive an explicit unavailable value.
+            result["sharpe_ratio"] = None
+            gross_losses = sum(-t.pnl for t in self.portfolio.closed_trades
+                               if t.pnl < 0)
+            if gross_losses == 0:
+                result["profit_factor"] = None
+            result["metric_notes"] = {
+                "sharpe_ratio": "unavailable: periodic dated NAV returns required",
+                "profit_factor": "gross wins / abs(gross losses); null if no losses",
+                "unrealized_pnl": "legacy prices may be stale or substituted",
+            }
+            return result
 
     def get_model_performance(self, model_name: Optional[str] = None) -> Dict[str, Any]:
         """Get model performance metrics"""
         with self._lock:
             if model_name:
-                return asdict(self.model_performance.get(model_name, {}))
+                value = self.model_performance.get(model_name)
+                return asdict(value) if value is not None else {}
             return {name: asdict(perf) for name, perf in self.model_performance.items()}
 
     def get_market_data(self, ticker: Optional[str] = None) -> Dict[str, Any]:
         """Get current market data"""
         with self._lock:
             if ticker:
-                return asdict(self.market_data.get(ticker, {}))
+                value = self.market_data.get(ticker)
+                return asdict(value) if value is not None else {}
             return {ticker: asdict(data) for ticker, data in self.market_data.items()}
 
     def get_trade_history(self, limit: int = 50) -> List[Dict[str, Any]]:
@@ -319,29 +359,35 @@ class ShnifterDataManager:
             trade.confidence = confidence
             trade.open_time = datetime.now()
             
+            # Persist first: failure must not create ghost in-memory trades.
+            trade.trade_id = self._save_trade(trade)
             self.portfolio.add_trade(trade)
-            self._save_trade(trade)
             self._update_stats()
             self._notify_trade_callbacks()
             
             EventLog.emit("INFO", f"Added {direction} trade: {ticker} @ {entry_price}")
 
-    def close_trade(self, ticker: str, exit_price: float):
-        """Close an open trade"""
+    def close_trade(self, ticker: str, exit_price: float, trade_id: Optional[int] = None):
+        """Close exactly one simulated position, by stable ID when ambiguous.
+
+        The DB transition commits BEFORE in-memory state changes. This is a
+        legacy simulated-account fix, not a broker execution confirmation.
+        """
         with self._lock:
-            open_trades = [t for t in self.portfolio.get_open_trades() if t.ticker == ticker]
-            if not open_trades:
-                EventLog.emit("WARNING", f"No open trade found for {ticker}")
-                return
-            
-            trade = open_trades[0]  # Close first matching trade
-            self.portfolio.close_trade(trade, exit_price, datetime.now())
-            self.trade_history.append(trade)
-            self._update_trade_in_db(trade)
+            matching = [t for t in self.portfolio.get_open_trades()
+                        if t.ticker == ticker and
+                        (trade_id is None or t.trade_id == trade_id)]
+            if not matching:
+                raise ValueError(f"No matching open position: {ticker}, id={trade_id}")
+            if len(matching) != 1:
+                raise ValueError("Multiple open positions: trade_id is required")
+            trade = matching[0]
+            closed_at = datetime.now()
+            self._update_trade_in_db(trade, exit_price, closed_at)
+            self.portfolio.close_trade(trade, exit_price, closed_at)
             self._update_stats()
             self._notify_trade_callbacks()
-            
-            EventLog.emit("INFO", f"Closed trade: {ticker} @ {exit_price}, P&L: {trade.pnl:.2f}")
+            EventLog.emit("INFO", f"Closed simulated trade ID {trade.trade_id}: {ticker}")
 
     def update_model_performance(self, model_name: str, accuracy: float, 
                                precision: float, recall: float, f1_score: float,
@@ -455,7 +501,12 @@ class ShnifterDataManager:
                 max_drawdown=self.portfolio.max_drawdown * 100,
                 current_drawdown=(self.portfolio.peak_balance - self.portfolio.balance) / self.portfolio.peak_balance * 100 if self.portfolio.peak_balance > 0 else 0.0,
                 sharpe_ratio=self._calculate_sharpe_ratio(),
-                profit_factor=abs(avg_win / avg_loss) if avg_loss != 0 else 0.0,
+                # Standard gross profit divided by absolute gross loss,
+                # not the ratio of *average* winning and losing trades.
+                profit_factor=(sum(t.pnl for t in winning_trades) /
+                               abs(sum(t.pnl for t in losing_trades))
+                               if any(t.pnl < 0 for t in losing_trades)
+                               else 0.0),
                 active_positions=len(self.portfolio.get_open_trades()),
                 last_updated=datetime.now()
             )
@@ -464,22 +515,17 @@ class ShnifterDataManager:
             self._notify_stats_callbacks()
 
     def _calculate_sharpe_ratio(self) -> float:
-        """Calculate Sharpe ratio from trade returns"""
-        if not self.portfolio.closed_trades:
-            return 0.0
-        
-        returns = [t.pnl / abs(t.entry * t.size) for t in self.portfolio.closed_trades if t.entry * t.size != 0]
-        if not returns:
-            return 0.0
-        
-        avg_return = np.mean(returns)
-        std_return = np.std(returns)
-        
-        return (avg_return / std_return) if std_return != 0 else 0.0
+        """Legacy persistence placeholder only: no dated equity curve exists.
+
+        A trade-based mean/std ratio is NOT an annualised Sharpe ratio.
+        Public get_trading_stats() maps this legacy DB placeholder to None.
+        """
+        return 0.0
 
     def _trade_to_dict(self, trade: Trade) -> Dict[str, Any]:
         """Convert Trade object to dictionary"""
         return {
+            'trade_id': trade.trade_id,
             'ticker': trade.ticker,
             'entry_price': trade.entry,
             'exit_price': trade.exit,
@@ -492,39 +538,52 @@ class ShnifterDataManager:
             'close_time': trade.close_time.isoformat() if trade.close_time else None
         }
 
-    def _save_trade(self, trade: Trade):
-        """Save trade to database"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
-                    INSERT INTO trades (ticker, entry_price, size, direction, 
-                                      stop_loss, take_profit, status, confidence, open_time)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    trade.ticker, trade.entry, trade.size, trade.direction,
-                    trade.stop, trade.take_profit, trade.status, trade.confidence,
-                    trade.open_time
-                ))
-        except Exception as e:
-            EventLog.emit("ERROR", f"Could not save trade: {e}")
+    def _save_trade(self, trade: Trade) -> int:
+        """Insert exactly one simulated trade, returning its SQLite row ID.
 
-    def _update_trade_in_db(self, trade: Trade):
-        """Update trade in database when closed"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
-                    UPDATE trades 
-                    SET exit_price = ?, status = ?, pnl = ?, close_time = ?
-                    WHERE ticker = ? AND status = 'open'
-                """, (trade.exit, trade.status, trade.pnl, trade.close_time, trade.ticker))
-        except Exception as e:
-            EventLog.emit("ERROR", f"Could not update trade: {e}")
+        DB errors propagate; callers must not mutate in-memory holdings first.
+        """
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            cursor = conn.execute("""
+                INSERT INTO trades (ticker, entry_price, size, direction,
+                                    stop_loss, take_profit, status,
+                                    confidence, open_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                trade.ticker, trade.entry, trade.size, trade.direction,
+                trade.stop, trade.take_profit, trade.status, trade.confidence,
+                trade.open_time
+            ))
+            return int(cursor.lastrowid)
+
+    def _update_trade_in_db(self, trade: Trade, exit_price: float,
+                            close_time: datetime) -> None:
+        """Transition one OPEN SQLite row to CLOSED before updating memory."""
+        if type(trade.trade_id) is not int or trade.trade_id <= 0:
+            raise ValueError("Trade lacks a valid SQLite trade_id")
+        if (not isinstance(exit_price, (int, float)) or
+                not np.isfinite(exit_price) or exit_price <= 0):
+            raise ValueError("Exit price must be a finite positive number")
+        if trade.direction == "long":
+            pnl = (exit_price - trade.entry) * trade.size
+        elif trade.direction == "short":
+            pnl = (trade.entry - exit_price) * trade.size
+        else:
+            raise ValueError("Unsupported simulated trade direction")
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            cursor = conn.execute("""
+                UPDATE trades
+                SET exit_price = ?, status = 'closed', pnl = ?, close_time = ?
+                WHERE id = ? AND status = 'open'
+            """, (exit_price, pnl, close_time, trade.trade_id))
+            if cursor.rowcount != 1:
+                raise RuntimeError("Trade closure mismatch: no unique OPEN SQLite row")
 
     def _save_model_performance(self, model_name: str):
         """Save model performance to database"""
         try:
             perf = self.model_performance[model_name]
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO model_performance 
                     (model_name, accuracy, precision_score, recall_score, f1_score,
@@ -542,7 +601,7 @@ class ShnifterDataManager:
         """Save trading stats to database"""
         try:
             stats = self.trading_stats
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 conn.execute("""
                     INSERT INTO trading_stats 
                     (total_pnl, unrealized_pnl, realized_pnl, win_rate, total_trades,

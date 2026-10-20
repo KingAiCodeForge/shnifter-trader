@@ -8,6 +8,7 @@ import logging
 
 from core.events import EventLog, EventBus
 from core.execution import OrderRequest, OrderSide, OrderType
+from core.safe_risk_math import check_proposed_order, whole_share_size
 
 # Configure module-specific logger
 logger = logging.getLogger(__name__)
@@ -48,6 +49,9 @@ class RiskManager:
         self.positions = {}  # Track all open positions
         self.daily_trades = []  # Track all trades for the day
         self.circuit_breaker_active = False
+        # This legacy class has no broker/ledger reconciliation adapter.
+        # Its order gate is disabled until a verified position snapshot is supplied.
+        self.position_snapshot_verified = False
         self.last_reset = datetime.now().date()
         
         # Risk monitoring metrics
@@ -58,141 +62,61 @@ class RiskManager:
         logger.info(f"Risk manager initialized with balance: ${initial_balance}")
         EventLog.emit("INFO", f"Risk manager initialized - Initial balance: ${initial_balance}")
         
-    async def validate_order(self, order_request: OrderRequest, current_price: Decimal) -> tuple[bool, str]:
+    async def validate_order(self, order_request: OrderRequest,
+                             current_price: Decimal) -> tuple[bool, str]:
+        """Fail-closed, position-aware paper candidate validation.
+
+        A broker adapter must *independently* reconcile all outstanding orders,
+        positions, cash and quote freshness before marking state verified.
+        Setting position_snapshot_verified in this class is NOT a substitute
+        for broker reconciliation and does not authorise live orders.
         """
-        Comprehensive pre-trade risk validation.
-        Multiple layers of checks to ensure order meets all risk criteria.
-        
-        Args:
-            order_request: The order to validate
-            current_price: Current market price for the symbol
-            
-        Returns:
-            Tuple of (is_valid, reason_message)
+        await self._reset_daily_counters()  # Never clears a latched risk halt.
+        if not self.position_snapshot_verified:
+            return False, "legacy risk manager has no reconciled account snapshot"
+        try:
+            side = order_request.side.value
+            symbol = order_request.symbol
+            accepted, reason = check_proposed_order(
+                equity=self.current_balance, positions=self.positions,
+                symbol=symbol, side=side, quantity=order_request.quantity,
+                market_price=current_price, order_price=order_request.price,
+                max_position_value=self.risk_limits.max_position_size,
+                max_asset_fraction=self.risk_limits.max_single_asset_exposure,
+                max_portfolio_fraction=self.risk_limits.max_portfolio_exposure,
+                daily_pnl=self.daily_pnl,
+                max_daily_loss=self.risk_limits.max_daily_loss,
+                entry_halted=self.circuit_breaker_active,
+            )
+        except (AttributeError, TypeError, ValueError, ArithmeticError) as exc:
+            accepted, reason = False, f"invalid order details: {exc}"
+        EventLog.emit("INFO" if accepted else "WARNING",
+                      f"Legacy risk validation: {reason}")
+        return accepted, reason
+
+    async def calculate_position_size(self, account_balance: Decimal,
+                                      risk_percentage: Decimal,
+                                      entry_price: Decimal,
+                                      stop_loss_price: Decimal,
+                                      confidence_score: float = 1.0) -> Decimal:
+        """Return a bounded whole-share long quantity; never scale by AI score.
+
+        Invalid stop geometry, a zero stop distance, NaN, excessive requested
+        risk, or missing values return zero, not an arbitrary fallback size.
+        Caller must separately verify authoritative equity/positions and
+        commission-adjusted affordability before a broker order.
         """
-        logger.info(f"Validating order: {order_request.symbol} {order_request.side.value} {order_request.quantity}")
-        
-        # Check if circuit breaker is active
-        if self.circuit_breaker_active:
-            reason = "Circuit breaker active - trading halted"
-            logger.warning(f"Order validation failed: {reason}")
-            return False, reason
-            
-        # Reset daily counters if new trading day
-        await self._reset_daily_counters()
-        
-        # Calculate position value for risk assessment
-        position_value = order_request.quantity * current_price
-        logger.debug(f"Position value: ${position_value}")
-        
-        # Validate maximum position size
-        if position_value > self.risk_limits.max_position_size:
-            reason = f"Position size ${position_value} exceeds limit ${self.risk_limits.max_position_size}"
-            logger.warning(f"Order validation failed: {reason}")
-            EventLog.emit("WARNING", f"Position size limit exceeded: {reason}")
-            return False, reason
-            
-        # Check daily loss limit
-        if self.daily_pnl < -self.risk_limits.max_daily_loss:
-            reason = f"Daily loss limit exceeded: ${self.daily_pnl}"
-            logger.warning(f"Order validation failed: {reason}")
-            EventLog.emit("WARNING", f"Daily loss limit exceeded")
-            return False, reason
-            
-        # Check portfolio exposure
-        total_exposure = self._calculate_total_exposure()
-        max_allowed_exposure = self.current_balance * self.risk_limits.max_portfolio_exposure
-        
-        if total_exposure > max_allowed_exposure:
-            reason = f"Portfolio exposure limit exceeded: ${total_exposure} > ${max_allowed_exposure}"
-            logger.warning(f"Order validation failed: {reason}")
-            EventLog.emit("WARNING", f"Portfolio exposure limit exceeded")
-            return False, reason
-            
-        # Check single asset exposure
-        current_asset_exposure = self._get_asset_exposure(order_request.symbol)
-        new_asset_exposure = current_asset_exposure + position_value
-        max_asset_value = self.current_balance * self.risk_limits.max_single_asset_exposure
-        
-        if new_asset_exposure > max_asset_value:
-            reason = f"Single asset exposure limit exceeded for {order_request.symbol}"
-            logger.warning(f"Order validation failed: {reason}")
-            EventLog.emit("WARNING", f"Asset exposure limit exceeded: {order_request.symbol}")
-            return False, reason
-            
-        # Price sanity check to prevent fat-finger errors
-        if not self._validate_price_sanity(current_price, order_request.price):
-            reason = "Order price fails sanity check - price too far from market"
-            logger.warning(f"Order validation failed: {reason}")
-            EventLog.emit("WARNING", f"Price sanity check failed for {order_request.symbol}")
-            return False, reason
-            
-        # All validations passed
-        logger.info(f"Order validation successful for {order_request.symbol}")
-        EventLog.emit("INFO", f"Order validated: {order_request.symbol} {order_request.side.value}")
-        return True, "Order approved - all risk checks passed"
-        
-    async def calculate_position_size(self, 
-                                    account_balance: Decimal, 
-                                    risk_percentage: Decimal, 
-                                    entry_price: Decimal, 
-                                    stop_loss_price: Decimal,
-                                    confidence_score: float = 1.0) -> Decimal:
-        """
-        Enhanced position sizing with confidence-based adjustment.
-        Implements Kelly Criterion principles with risk management overlays.
-        
-        Args:
-            account_balance: Current account balance
-            risk_percentage: Percentage of account to risk (e.g., 0.01 for 1%)
-            entry_price: Planned entry price
-            stop_loss_price: Planned stop loss price
-            confidence_score: AI confidence score (0.0 to 1.0)
-            
-        Returns:
-            Optimal position size in shares/units
-        """
-        logger.info(f"Calculating position size - Balance: ${account_balance}, Risk: {risk_percentage:.1%}")
-        
-        # Base risk amount calculation
-        base_risk_amount = account_balance * risk_percentage
-        logger.debug(f"Base risk amount: ${base_risk_amount}")
-        
-        # Adjust for AI confidence (0.5x to 1.5x multiplier)
-        # Lower confidence = smaller position, higher confidence = larger position
-        confidence_multiplier = Decimal(str(0.5 + confidence_score))
-        adjusted_risk_amount = base_risk_amount * confidence_multiplier
-        
-        logger.debug(f"Confidence score: {confidence_score:.2f}, Multiplier: {confidence_multiplier}")
-        logger.debug(f"Adjusted risk amount: ${adjusted_risk_amount}")
-        
-        # Calculate stop loss distance
-        stop_loss_distance = abs(entry_price - stop_loss_price)
-        
-        if stop_loss_distance == 0:
-            logger.warning("Stop loss distance is zero - using minimum position size")
-            EventLog.emit("WARNING", "Stop loss distance is zero - using minimum position size")
-            return Decimal('100')  # Minimum position size fallback
-            
-        # Calculate position size based on risk amount and stop distance
-        position_size = adjusted_risk_amount / stop_loss_distance
-        logger.debug(f"Calculated position size: {position_size}")
-        
-        # Apply maximum position size limits
-        max_position_value = min(
-            self.risk_limits.max_position_size,
-            account_balance * self.risk_limits.max_single_asset_exposure
-        )
-        max_quantity = max_position_value / entry_price
-        
-        # Use the smaller of calculated size or maximum allowed
-        final_position_size = min(position_size, max_quantity)
-        
-        logger.info(f"Final position size: {final_position_size} (Risk: ${adjusted_risk_amount}, Distance: ${stop_loss_distance})")
-        EventLog.emit("INFO", f"Position sizing complete: {final_position_size} shares, Risk: ${adjusted_risk_amount}")
-        
-        return final_position_size
-        
+        try:
+            return whole_share_size(
+                equity=account_balance, risk_fraction=risk_percentage,
+                entry=entry_price, stop=stop_loss_price,
+                max_asset_fraction=self.risk_limits.max_single_asset_exposure,
+                max_position_value=self.risk_limits.max_position_size,
+            )
+        except (ValueError, ArithmeticError, TypeError) as exc:
+            EventLog.emit("WARNING", f"Rejected legacy position sizing: {exc}")
+            return Decimal("0")
+
     async def generate_stop_orders(self, 
                                  symbol: str, 
                                  entry_price: Decimal, 
@@ -407,9 +331,9 @@ class RiskManager:
             self.daily_trades = []
             self.last_reset = today
             
-            # Reset circuit breaker for new day (with caution)
+            # Circuit breakers require explicit operator recovery and must
+            # never reset because the local date advanced.
             if self.circuit_breaker_active:
-                logger.warning("Circuit breaker reset for new trading day - monitor closely")
-                self.circuit_breaker_active = False
+                logger.warning("Risk halt remains latched across day rollover")
                 
             EventLog.emit("INFO", "Daily risk counters reset for new trading day")

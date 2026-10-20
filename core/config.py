@@ -6,12 +6,14 @@ import json
 import os
 from typing import Dict, Any
 from datetime import datetime
+from pathlib import Path
+from shnifter_paths import data_directory
 
 class ShnifterConfig:
     """Centralized configuration manager"""
     
-    def __init__(self, config_file: str = "shnifter_config.json"):
-        self.config_file = config_file
+    def __init__(self, config_file: str = None):
+        self.config_file = Path(config_file) if config_file is not None else data_directory() / "shnifter_config.json"
         self.config = self._load_default_config()
         self.load_config()
         
@@ -67,7 +69,8 @@ class ShnifterConfig:
                 'last_updated': datetime.now().isoformat(),
                 'version': '1.0'
             }
-            with open(self.config_file, 'w') as f:
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=2)
         except Exception as e:
             print(f"Warning: Could not save config file: {e}")

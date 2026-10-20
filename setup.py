@@ -1,86 +1,57 @@
-"""
-Setup script for Shnifter Trader
-"""
-
-from setuptools import setup, find_packages
 from pathlib import Path
+from setuptools import setup
+from setuptools.command.build_py import build_py
 
-# Read the contents of README file
-this_directory = Path(__file__).parent
-long_description = (this_directory / "README.md").read_text()
+ROOT = Path(__file__).resolve().parent
+RESEARCH_MODULES = [
+    'shnifter_cli', 'shnifter_replay', 'shnifter_backtest_cli',
+    'shnifter_analysis_core', 'shnifter_actions', 'shnifter_agent_cli',
+    'shnifter_agent_api', 'shnifter_agent_mcp', 'shnifter_experiments',
+    'shnifter_experiment_cli', 'shnifter_oos_gate', 'shnifter_research_cli',
+    'shnifter_paper_ledger', 'shnifter_paper_cli', 'shnifter_safe_output',
+    'shnifter_order_events', 'shnifter_order_events_cli', 'shnifter_paths',
+]
+
+PACKAGE_MODULES = {
+    'core': {'data_models'},
+    'providers': {'yfinance_provider'},
+    'shnifterBB': {'shnifter_bb'},
+}
+
+class ResearchBuild(build_py):
+    """Do not accidentally ship neighbouring GUI/account/prototype modules."""
+    def find_package_modules(self, package, package_dir):
+        return [(pkg, mod, filename) for pkg, mod, filename in
+                super().find_package_modules(package, package_dir)
+                if mod in PACKAGE_MODULES.get(pkg, set())]
 
 setup(
-    name="shnifter-trader",
-    version="1.0.0",
-    author="Shnifter Trader Team",
-    author_email="contact@shnifter.com",
-    description="Advanced AI-Powered Trading Platform",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://github.com/shnifter/trader",
-    packages=find_packages(),
-    classifiers=[
-        "Development Status :: 4 - Beta",
-        "Intended Audience :: Financial and Insurance Industry",
-        "Topic :: Office/Business :: Financial :: Investment",
-        "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Programming Language :: Python :: 3.12",
-        "Programming Language :: Python :: 3.13",
-    ],
-    python_requires=">=3.9",
-    install_requires=[
-        "numpy>=2.1.0",
-        "pandas>=2.2.3",
-        "scikit-learn>=1.6",
-        "PySide6>=6.8.0",
-        "yfinance>=0.2.0",
-        "alpha-vantage>=2.3.1",
-        "requests>=2.31.0",
-        "pydantic>=2.0.0",
-        "nltk>=3.8.1",
-        "prophet>=1.1.0",
-        "fastapi>=0.100.0",
-        "uvicorn>=0.23.0",
-        "openai>=1.93.0",
-        "plotly>=6.2.0",
-        "autogen-agentchat>=0.4.0",
-        "chromadb>=0.5.0",
-        "langgraph>=0.2.0",
-        "streamlit>=1.40.0",
-        "dash>=2.18.0",
-    ],
+    name='shnifter-trader',
+    version='0.2.0a1',
+    author='KingAiCodeForge',
+    description='Experimental offline research and explicit local paper simulation',
+    long_description=(ROOT / 'README.md').read_text(encoding='utf-8'),
+    long_description_content_type='text/markdown',
+    url='https://github.com/KingAiCodeForge/shnifter-trader',
+    # Deliberately exclude the copied framework, GUI prototypes and local data.
+    # Historical CLI uses only these small namespace packages.
+    packages=['core', 'providers', 'shnifterBB'],
+    py_modules=RESEARCH_MODULES,
+    python_requires='>=3.11',
+    install_requires=['numpy>=2.1', 'pandas>=2.2.3', 'scikit-learn>=1.6',
+                      'pydantic>=2', 'requests>=2.31'],
     extras_require={
-        "dev": [
-            "pytest>=7.4.0",
-            "black>=23.12.0",
-            "flake8>=6.1.0",
-            "poetry>=1.6.0",
-        ],
-        "trading": [
-            "backtrader>=1.9.78",
-            "ccxt>=4.0.0",
-            "python-binance>=1.0.19",
-            "ta>=0.10.2",
-            "pandas-ta>=0.3.14b0",
-        ],
-        "ai": [
-            "transformers>=4.35.0",
-            "torch>=2.0.0",
-            "anthropic>=0.18.0",
-            "langchain>=0.1.0",
-        ],
+        'market': ['yfinance>=0.2.28'],
+        'api': ['fastapi>=0.104', 'uvicorn>=0.24'],
+        'agents': ['mcp>=1.29,<3'],
+        'gui': ['PySide6>=6.8', 'matplotlib>=3.9', 'nltk>=3.8.1',
+                'plotly>=6.2', 'aiolimiter>=1.2', 'tqdm>=4.67'],
+        'dev': ['build>=1.2', 'pytest>=7.4'],
     },
-    entry_points={
-        "console_scripts": [
-            "shnifter-trader=Multi_Model_Trading_Bot:main",
-        ],
-    },
-    include_package_data=True,
-    package_data={
-        "": ["*.json", "*.yaml", "*.yml", "*.toml", "*.cfg", "*.ini"],
-    },
+    classifiers=['Development Status :: 3 - Alpha',
+                 'Programming Language :: Python :: 3',
+                 'Topic :: Scientific/Engineering :: Information Analysis'],
+    entry_points={'console_scripts': ['shnifter-trader=shnifter_cli:main']},
+    include_package_data=False,
+    cmdclass={'build_py': ResearchBuild},
 )

@@ -131,9 +131,11 @@ cython_debug/
 shnifter_log.txt
 shnifter_setup_log.txt
 pytest_output.txt
-# Tests (local only)
+# Local tests stay private except reviewed public research regressions.
 test_*.py
-tests/
+!tests/
+tests/*
+!tests/test_shnifter*.py
 shnifter_test_report.html
 
 # IDE workspace files
@@ -152,3 +154,15 @@ shnifter_test_report.html
 *copy.md
 *copy.py
 
+# Local state/configuration, never release or unignore these.
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+/llm_config.json
+/shnifter_config.json
+/data/
+/evidence/
+/.qualification*/

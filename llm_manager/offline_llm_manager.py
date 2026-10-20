@@ -64,8 +64,8 @@ class OfflineLLMManager:
                     "max_tokens": 2048
                 },
                 "llama_cpp": {
-                    "enabled": True,
-                    "model_path": "/home/ubuntu/models/llama-2-7b-chat.gguf",
+                    "enabled": bool(os.environ.get("SHNIFTER_LLAMA_CPP_MODEL")),
+                    "model_path": os.environ.get("SHNIFTER_LLAMA_CPP_MODEL", ""),
                     "context_size": 4096,
                     "threads": 4,
                     "max_tokens": 2048

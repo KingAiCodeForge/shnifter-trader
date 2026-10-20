@@ -14,6 +14,8 @@ import requests
 import os
 import csv
 import json
+import io
+from shnifter_safe_output import atomic_write_text
 
 # GUI components
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -57,12 +59,12 @@ except ImportError as e:
     print(f"Warning: Some analysis modules not available: {e}")
     ANALYSIS_MODULES_AVAILABLE = False
 
-# Ensure VADER lexicon is available for sentiment analysis
+# No dependency downloads during import or launch. Install lexicon explicitly.
 try:
-    nltk.data.find('sentiment/vader_lexicon.zip')
+    analyzer = SentimentIntensityAnalyzer()
 except LookupError:
-    nltk.download('vader_lexicon')
-analyzer = SentimentIntensityAnalyzer()
+    analyzer = None
+    EventLog.emit("WARNING", "VADER lexicon missing; sentiment unavailable. Install it explicitly with python -m nltk.downloader vader_lexicon.")
 
 # Ollama integration to explain signals
 def query_ollama(prompt, context="", model="llama3"):
@@ -131,8 +133,9 @@ class AnalysisWorker(QThread):
                 final_decision = "SELL"
 
             log.append(f"--> Consensus Signal: {final_decision}")
-            last_price = recent_data['close'].iloc[-1]
-            action_log = f"ACTION: {final_decision} {self.ticker} @ {last_price:.2f}"
+            from shnifter_analysis_core import _normalise_close
+            last_price = float(_normalise_close(recent_data).iloc[-1])
+            action_log = f"RESEARCH SIGNAL (no order): {final_decision} {self.ticker} @ {last_price:.2f}"
             if final_decision == "BUY":
                 stop_loss = last_price * 0.95
                 take_profit = last_price * 1.10
@@ -158,69 +161,36 @@ class AnalysisWorker(QThread):
             self.finished_signal.emit({'success': False, 'log': log, 'ticker': self.ticker, 'decision': None, 'llm_summary': None})
 
     def get_trend_signal(self, df):
-        log = ["  - Running Trend Model (SMA Crossover)..."]
-        df['SMA_20'] = df['close'].rolling(window=20).mean()
-        df['SMA_50'] = df['close'].rolling(window=50).mean()
-        # Ensure scalar values for formatting
+        """Compatibility adapter for GUI; computation lives in headless core."""
+        from shnifter_analysis_core import evaluate_signals
         try:
-            # Convert to proper scalar values with safer extraction
-            last_sma_20 = df['SMA_20'].iloc[-1]
-            last_sma_50 = df['SMA_50'].iloc[-1]
-            
-            # Patch: If result is a Series, get the first value
-            if isinstance(last_sma_20, pd.Series):
-                last_sma_20 = last_sma_20.iloc[0]
-            if isinstance(last_sma_50, pd.Series):
-                last_sma_50 = last_sma_50.iloc[0]
-            
-            # Safe conversion to float with pandas compatibility
-            last_sma_20_val = float(last_sma_20.iloc[0] if hasattr(last_sma_20, 'iloc') else last_sma_20) if pd.notnull(last_sma_20) else float('nan')
-            last_sma_50_val = float(last_sma_50.iloc[0] if hasattr(last_sma_50, 'iloc') else last_sma_50) if pd.notnull(last_sma_50) else float('nan')
-            log.append(f"    - SMA_20: {last_sma_20_val:.2f}, SMA_50: {last_sma_50_val:.2f}")
-            signal = 'BUY' if last_sma_20_val > last_sma_50_val else 'SELL'
-        except Exception as e:
-            log.append(f"    - SMA calculation error: {e}")
-            signal = 'HOLD'
-        log.append(f"    -> Signal: {signal}")
-        return signal, log
+            result = evaluate_signals(df, ticker=self.ticker, fast=20, slow=50, use_ml=False)
+            trend = result["trend"]
+            return trend["action"], [
+                f"  - SMA20={trend['fast_sma']:.3f}, SMA50={trend['slow_sma']:.3f}",
+                f"    -> Trend signal: {trend['action']} (research only)",
+            ]
+        except (TypeError, ValueError) as exc:
+            return "HOLD", [f"  - Trend unavailable: {exc}"]
 
     def get_ml_signal(self, df):
-        log = ["  - Running ML Model (Random Forest)..."]
-        df['price_change'] = df['close'].pct_change()
-        df['target'] = np.where(df['close'].shift(-1) > df['close'], 1, -1)
-        df.dropna(inplace=True)
-
-        features = ['price_change']
-        X = df[features]
-        y = df['target']
-        
-        # Check if we have enough data after dropna
-        if len(X) == 0:
-            log.append("    -> No valid data after processing. Using HOLD signal.")
-            return "HOLD", log
-        
-        if len(X) < 10:
-            log.append("    -> Not enough data to train ML model (need at least 10 samples).")
-            return "HOLD", log
-
-        # Use a smaller test size for small datasets
-        test_size = min(0.2, max(0.1, 1.0 / len(X)))
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, shuffle=False)
-
-        if len(X_train) < 5:
-            log.append("    -> Not enough data to train ML model after split.")
-            return "HOLD", log
-
-        model = RandomForestClassifier(n_estimators=50, random_state=42)
-        model.fit(X_train, y_train)
-        accuracy = model.score(X_test, y_test) if len(X_test) > 0 else 0.5
-        log.append(f"    - Accuracy: {accuracy:.2%}")
-
-        last_feature = df[features].iloc[[-1]]
-        prediction = model.predict(last_feature)[0]
-        signal = 'BUY' if prediction == 1 else 'SELL'
-        log.append(f"    -> Signal: {signal}")
-        return signal, log
+        """Chronological RandomForest; never labels the latest row as a loss."""
+        from shnifter_analysis_core import evaluate_signals
+        try:
+            result = evaluate_signals(df, ticker=self.ticker, min_labeled=80)
+            ml = result["ml"]
+            log = [f"  - ML status: {ml['status']}"]
+            if ml["validation_accuracy"] is not None:
+                log.append(f"  - Out-of-sample validation accuracy: {ml['validation_accuracy']:.2%}")
+                log.append(f"  - Majority-class baseline: {ml['majority_baseline_accuracy']:.2%}")
+            if ml["probability_up_uncalibrated"] is not None:
+                log.append(
+                    f"  - Uncalibrated next-bar up score: {ml['probability_up_uncalibrated']:.3f}"
+                )
+            log.append(f"    -> ML signal: {ml['action']} (research only)")
+            return ml["action"], log
+        except (TypeError, ValueError) as exc:
+            return "HOLD", [f"  - ML unavailable: {exc}"]
 
     def get_sentiment_signal(self, ticker):
         log = [f"  - Running Sentiment Model (Provider: {self.news_provider})..."]
@@ -233,6 +203,8 @@ class AnalysisWorker(QThread):
             if not headlines:
                 log.append("    - News found, but no valid titles for analysis.")
                 return 'HOLD', log
+            if analyzer is None:
+                raise ValueError("VADER lexicon missing; sentiment analysis is unavailable")
             scores = [analyzer.polarity_scores(h)['compound'] for h in headlines]
             avg_score = np.mean(scores)
             log.append(f"    - Avg Score: {avg_score:.3f} from {len(headlines)} headlines")
@@ -247,15 +219,17 @@ class Exporter:
     """Handles exporting logs and signals to CSV/JSON."""
     @staticmethod
     def export_to_csv(filename, data, fieldnames=None):
-        with open(filename, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames or data[0].keys())
-            writer.writeheader()
-            writer.writerows(data)
+        if not data and not fieldnames:
+            raise ValueError("CSV export requires rows or explicit field names")
+        buffer = io.StringIO(newline='')
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames or data[0].keys())
+        writer.writeheader()
+        writer.writerows(data)
+        atomic_write_text(filename, buffer.getvalue())
 
     @staticmethod
     def export_to_json(filename, data):
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        atomic_write_text(filename, json.dumps(data, indent=2, ensure_ascii=False))
 
 class BacktestWorker(QThread):
     """Worker thread to run backtests in the background, preventing UI freezes."""
@@ -273,9 +247,24 @@ class BacktestWorker(QThread):
         try:
             for ticker in self.tickers:
                 for provider in self.providers:
-                    pnl, win_rate, trades = self.simulate_backtest(ticker, provider)
-                    result_msg = f"Backtest for {ticker} ({provider}): PnL={pnl:.2f}, Win Rate={win_rate:.1f}%, Trades={trades}"
-                    EventLog.emit("INFO", result_msg)
+                    try:
+                        report = self.simulate_backtest(ticker, provider)
+                        win_rate = report['win_rate_pct']
+                        win_rate_text = (f"{win_rate:.1f}%" if win_rate is not None
+                                         else "N/A (no completed trades)")
+                        result_msg = (
+                            f"Backtest {ticker} ({provider}): "
+                            f"Ending equity={report['final_equity']:.2f}, "
+                            f"Realised P&L={report['realised_pnl']:.2f}, "
+                            f"Unrealised P&L={report['unrealised_pnl']:.2f}, "
+                            f"Win rate={win_rate_text}, "
+                            f"Completed trades={report['completed_trades']}, "
+                            f"Run ID={report['run_id']}"
+                        )
+                        EventLog.emit("INFO", result_msg)
+                    except Exception as exc:
+                        result_msg = f"Backtest {ticker} ({provider}) FAILED: {exc}"
+                        EventLog.emit("ERROR", result_msg)
                     results_log.append(result_msg)
             EventLog.emit("INFO", "Background backtest completed.")
             self.backtest_finished_signal.emit(results_log)
@@ -286,18 +275,20 @@ class BacktestWorker(QThread):
             self.backtest_finished_signal.emit(results_log)
 
     def simulate_backtest(self, ticker, provider):
-        # Remove provider parameter since ShnifterBB doesn't support it for historical data
-        # Add required start_date and end_date parameters
+        """Run an auditable replay; never invent strategy results.
+
+        Historical SMA decisions execute at the NEXT bar's open with simulated
+        adverse slippage, fees and conservative intrabar stops. No broker used.
+        """
+        if provider != 'yfinance':
+            raise ValueError(f"Price provider {provider!r} is not implemented")
+        from shnifter_replay import from_dataframe, run_replay
         end_date = datetime.now().strftime('%Y-%m-%d')
         start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-        historical_data = self.shnifter.equity.price.historical(ticker, start_date=start_date, end_date=end_date)
-        if historical_data.to_df().empty:
-            return 0.0, 0.0, 0
-        pnl = np.random.uniform(-10.0, 20.0) * len(historical_data.to_df()) / 100
-        win_rate = np.random.uniform(40.0, 65.0)
-        trades = np.random.randint(50, 150)
-        time.sleep(2)  # Simulate a long-running task
-        return pnl, win_rate, trades
+        history = self.shnifter.equity.price.historical(
+            ticker, start_date=start_date, end_date=end_date
+        )
+        return run_replay(from_dataframe(history.to_df()), ticker=ticker)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -592,16 +583,26 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(False)
         llm_model = self.get_selected_llm_model()
         news_provider = self.news_provider_dropdown.currentText().split(' ')[0].lower()
+        if self.dual_llm_mode:
+            # Legacy dual inference is still synchronous; at least restore
+            # the GUI button even when a provider raises. Async refactor pending.
+            try:
+                for ticker in tickers:
+                    try:
+                        self.run_dual_llm_decision(ticker, news_provider)
+                    except Exception as exc:
+                        EventLog.emit("ERROR", f"Dual-LLM research failed for {ticker}: {exc}")
+                        self.log_display.append(f"Dual-LLM research failed for {ticker}: {exc}")
+            finally:
+                self.start_button.setText("Start Analysis")
+                self.start_button.setEnabled(True)
+            return
         for ticker in tickers:
-            if self.dual_llm_mode:
-                # Dual-LLM decision flow
-                self.run_dual_llm_decision(ticker, news_provider)
-            else:
-                worker = AnalysisWorker(ticker, llm_model=llm_model, news_provider=news_provider)
-                worker.finished_signal.connect(self.on_analysis_complete)
-                worker.finished.connect(self.remove_finished_worker)
-                self.analysis_workers.append(worker)
-                worker.start()
+            worker = AnalysisWorker(ticker, llm_model=llm_model, news_provider=news_provider)
+            worker.finished_signal.connect(self.on_analysis_complete)
+            worker.finished.connect(self.remove_finished_worker)
+            self.analysis_workers.append(worker)
+            worker.start()
         print(f"INFO: Started analysis for tickers: {', '.join(tickers)}")
 
     def run_dual_llm_decision(self, ticker, news_provider):
@@ -689,8 +690,7 @@ class MainWindow(QMainWindow):
             ticker = result.get('ticker')
             decision = result.get('decision')
             llm_summary = result.get('llm_summary')
-            confidence = result.get('confidence', 0.5)
-            
+
             # Store decision for export
             if ticker and decision:
                 self.last_decisions[ticker] = {
@@ -702,9 +702,9 @@ class MainWindow(QMainWindow):
             if llm_summary:
                 self.ai_chatbox.append(f"[{ticker}] {decision}:\n{llm_summary}\n")
             
-            # Integrate with data manager
-            model_used = self.get_selected_llm_model()
-            self.integrate_analysis_with_data_manager(ticker, decision, confidence, model_used)
+            # Research results never imply permission to trade or update
+            # portfolio performance statistics.
+            EventLog.emit("INFO", f"Analysis result recorded for {ticker}: {decision} (no trade)")
             
             # Refresh chart
             self.refresh_chart()
@@ -746,6 +746,9 @@ class MainWindow(QMainWindow):
             self.backtest_workers.remove(worker)
             EventLog.emit("DEBUG", f"Backtest worker {worker} removed from tracking list.")
         worker.deleteLater()
+        if not any(w.isRunning() for w in getattr(self, 'analysis_workers', [])):
+            self.start_button.setText("Start Analysis")
+            self.start_button.setEnabled(True)
 
     def get_selected_llm_model(self):
         """Return the currently selected LLM model from the dropdown."""
@@ -896,62 +899,20 @@ class MainWindow(QMainWindow):
             })
         fieldnames = ['Ticker', 'Decision', 'LLM Summary']
         try:
-            with open(filename, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(data)
+            Exporter.export_to_csv(filename, data, fieldnames)
             self.log_display.append(f"Exported last decisions to {filename}.")
         except Exception as e:
             self.log_display.append(f"Failed to export last decisions: {e}")
 
     def integrate_analysis_with_data_manager(self, ticker, signal, confidence, model_used):
-        """Integrate analysis results with the centralized data manager"""
-        try:
-            # Update market data for the ticker
-            data_manager.update_market_data(ticker)
-            
-            # If signal suggests a trade, simulate adding it to the portfolio
-            if signal in ['BUY', 'SELL'] and confidence > 0.6:
-                # Get current price
-                market_data = data_manager.get_market_data(ticker)
-                current_price = market_data.get('current_price', 100.0) if market_data else 100.0
-                
-                # Calculate position size (2% risk per trade)
-                position_size = max(1, int(1000 / current_price))  # Simple position sizing
-                
-                direction = 'long' if signal == 'BUY' else 'short'
-                stop_loss = current_price * (0.98 if signal == 'BUY' else 1.02)
-                take_profit = current_price * (1.05 if signal == 'BUY' else 0.95)
-                
-                # Add trade to data manager
-                data_manager.add_trade(
-                    ticker=ticker,
-                    entry_price=current_price,
-                    size=position_size,
-                    direction=direction,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    confidence=confidence
-                )
-                
-                EventLog.emit("INFO", f"Added {direction} trade for {ticker} @ ${current_price:.2f}")
-            
-            # Update model performance metrics
-            # For demonstration, we'll simulate accuracy based on confidence
-            simulated_accuracy = min(0.95, confidence + 0.1)
-            
-            data_manager.update_model_performance(
-                model_name=model_used,
-                accuracy=simulated_accuracy,
-                precision=simulated_accuracy * 0.9,
-                recall=simulated_accuracy * 0.85,
-                f1_score=simulated_accuracy * 0.87,
-                last_prediction=signal,
-                confidence=confidence
-            )
-            
-        except Exception as e:
-            EventLog.emit("ERROR", f"Data manager integration error: {e}")
+        """Compatibility stub: analysis must never create or fake trades.
+
+        All orders, including paper orders, require an explicit independent
+        execution action with idempotent ledger and risk validation.
+        """
+        EventLog.emit(
+            "INFO", f"Research signal only for {ticker}: {signal}; no order placed"
+        )
 
     def simulate_demo_trading_session(self):
         """Generate demo trading data for testing the frontend"""

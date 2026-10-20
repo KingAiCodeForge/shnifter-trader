@@ -320,7 +320,10 @@ class LLMManagerPopout(QDialog):
         }
         
         try:
-            with open("llm_config.json", "w") as f:
+            from shnifter_paths import data_directory
+            config_path = data_directory() / "llm_config.json"
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            with config_path.open("w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
             self.test_output.append("💾 Configuration saved successfully!")
             EventLog.emit("INFO", "LLM configuration saved")

@@ -57,6 +57,22 @@ class TestRiskManagement(unittest.TestCase):
         self.assertTrue(check_drawdown(p, max_drawdown=0.2))
 
 class TestPaperTradingEngine(unittest.TestCase):
+    def test_same_ticker_closure_changes_only_exact_trade_and_cannot_repeat(self):
+        engine = PaperTradingEngine(10000)
+        first = engine.place_trade('AAPL', 100, 1, 90, 120)
+        second = engine.place_trade('AAPL', 110, 2, 90, 130)
+        engine.close_trade(first, 120)
+        self.assertEqual([row['status'] for row in engine.trade_log], ['closed', 'open'])
+        self.assertEqual(engine.portfolio.get_open_trades(), [second])
+        balance = engine.portfolio.balance
+        with self.assertRaises(ValueError):
+            engine.close_trade(first, 120)
+        self.assertEqual(engine.portfolio.balance, balance)
+        foreign = PaperTradingEngine().place_trade('AAPL', 100, 1, 90, 120)
+        with self.assertRaises(ValueError):
+            engine.close_trade(foreign, 120)
+        self.assertEqual(engine.portfolio.balance, balance)
+
     def test_place_and_close_trade(self):
         engine = PaperTradingEngine(10000)
         trade = engine.place_trade('AAPL', 100, 1, 90, 120)

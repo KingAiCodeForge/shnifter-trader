@@ -1,0 +1,32 @@
+{
+  "captured_utc": "2026-10-20",
+  "repository": "https://github.com/KingAiCodeForge/shnifter-trader",
+  "main_at_capture": "10c3eb7f3a837c9119012974d6fde9c634b25cff",
+  "integration_spine": "b70325b76fd61cc99d5c43dd87a0169aa70a5305",
+  "refs": {
+    "refs/heads/main": "10c3eb7f3a837c9119012974d6fde9c634b25cff",
+    "refs/heads/research/algorithm-stack-20261017": "80d3a77439060701dcec03248d941f5e6aa8366a",
+    "refs/heads/review/agent-validation-audit-20261017": "ee21def18fc443b31ed14ceec017b7adf80c526b",
+    "refs/heads/review/analysis-core-refactor-20261017": "af91f27d343ac0740552796d1756d3c717e6e77b",
+    "refs/heads/review/cli-market-historical-20261017": "0a043c25abdd68380181278f9abc569111405c47",
+    "refs/heads/review/deterministic-replay-20261017": "604aeecb03ba1e1b0a0077858219d9cb6236a044",
+    "refs/heads/review/experiment-registry-20261017": "83aab0936db837192226bf813f0c030800676826",
+    "refs/heads/review/ibkr-safety-foundation-20261017": "604aeecb03ba1e1b0a0077858219d9cb6236a044",
+    "refs/heads/review/legacy-risk-accounting-hardening-20261017": "9b4d0ad6a8c211930e699a350b5155d55514eccd",
+    "refs/heads/review/paper-admission-safety-20261017": "b70325b76fd61cc99d5c43dd87a0169aa70a5305",
+    "refs/heads/review/paper-event-lifecycle-20261017": "d11172cfdd2875927179f69c505e270521e46492",
+    "refs/heads/review/paper-ledger-20261017": "e95a2e2a5adf10af53b2cd4935e217e58ae0e360",
+    "refs/heads/review/paper-ledger-trade-id-20261017": "10c3eb7f3a837c9119012974d6fde9c634b25cff",
+    "refs/heads/review/profitability-evidence-gates-20261017": "3ce098417ce37d5353e79594022b9580990af31f",
+    "refs/heads/review/research-integrity-20261017": "4dd97af0ca226dc1318524f25ea0aa2852b891cf",
+    "refs/heads/review/risk-heat-hardening-20261017": "91cfc9cb3335a5dc3787bec6ecac395ee3e3ff08"
+  },
+  "local_preservation_bundle": {
+    "name": "shnifter-original-refs.bundle",
+    "bytes": 2945077,
+    "sha256": "0308d8495a26b4c7b03b5f71e1f3addfa0bc6ed248a16e0225a403ddadbec73f",
+    "publish": false,
+    "reason": "Preserves original public tracked artifact bytes and prototype refs; contains excluded historical local-state data and is NOT a release asset."
+  },
+  "policy": "No original ref deleted/rewritten; side ancestry reconciled only after content coverage review. No private repository read or copied."
+}

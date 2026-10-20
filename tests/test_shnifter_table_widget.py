@@ -13,10 +13,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shnifter_frontend.shnifter_table_widget import ShnifterTableWidget, LLMTableAnalyzer
 from core.events import EventLog
+from PySide6.QtWidgets import QApplication
 
 class TestShnifterTableWidget(unittest.TestCase):
     """Test cases for ShnifterTableWidget"""
     
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
     def setUp(self):
         """Set up test fixtures"""
         self.sample_data = pd.DataFrame({
@@ -29,9 +34,12 @@ class TestShnifterTableWidget(unittest.TestCase):
     def test_data_loading(self):
         """Test loading different data formats"""
         widget = ShnifterTableWidget()
+        self.assertFalse(widget.auto_analysis_checkbox.isChecked())
         
         # Test DataFrame loading
-        widget.load_data(self.sample_data)
+        with patch.object(widget, '_analyze_table') as analyze:
+            widget.load_data(self.sample_data)
+            analyze.assert_not_called()
         self.assertFalse(widget.table_data.empty)
         self.assertEqual(len(widget.table_data), 3)
         

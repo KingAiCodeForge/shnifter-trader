@@ -1,0 +1,357 @@
+{
+  "scope": "Explicit alpha research distribution; file listings and final current-source byte parity. This is not full repository/provenance clearance. GUI/copied framework and local data excluded. Final wheel installed tests are in INSTALLED_PACKAGE_TEST_RECEIPT_2026-10-20.json.",
+  "assets": [
+    {
+      "path": "shnifter_trader-0.2.0a1-py3-none-any.whl",
+      "bytes": 62050,
+      "sha256": "3bcdf0119e409b716187ab55f513dafe054fc032703ada3da6fdb02f0dff225a",
+      "member_count": 26,
+      "source_files_byte_matched": 21,
+      "matched_sources": [
+        {
+          "path": "shnifter_actions.py",
+          "sha256": "798f6faef5b119ab937f81e32e16674dd7bd0717d66b8f273cb3c6fc09b69a47"
+        },
+        {
+          "path": "shnifter_agent_api.py",
+          "sha256": "b6eb65945fbd93c6e6f9df0273fb7db2ff533724c8d3f7c3c0ca0a53814051b3"
+        },
+        {
+          "path": "shnifter_agent_cli.py",
+          "sha256": "0f31599a96e3957482927ee75f26be2af54debe3e44b6b41755529a8ff06f500"
+        },
+        {
+          "path": "shnifter_agent_mcp.py",
+          "sha256": "d0781bdf7d04007192916c94578888b0918885473aad0c77b79136bfb7315596"
+        },
+        {
+          "path": "shnifter_analysis_core.py",
+          "sha256": "edbd7255791aaaccc3c96eb54888f006fc5c99180489c3fc2848572d8917edfb"
+        },
+        {
+          "path": "shnifter_backtest_cli.py",
+          "sha256": "d5eddbd6e5666cf090c598f4af7daa7964736f7f0d9320354757e5f7100a6a8d"
+        },
+        {
+          "path": "shnifter_cli.py",
+          "sha256": "ad811904c3472eb5cb9c2c0fe0d07095070bd8ef5c603173f876f240249f86d8"
+        },
+        {
+          "path": "shnifter_experiment_cli.py",
+          "sha256": "3440094674a565c1780ead2c2e2a89b9e46c974a779b5d7252d17d52bf554f20"
+        },
+        {
+          "path": "shnifter_experiments.py",
+          "sha256": "262a03df46e87e875e36315a797acf6a11c7e3b0d75725ceeca46970f33eba79"
+        },
+        {
+          "path": "shnifter_oos_gate.py",
+          "sha256": "a9b091578187ec65ae80523169933238cbde8ce9fa96c818932ba6fed4cc2a9d"
+        },
+        {
+          "path": "shnifter_order_events.py",
+          "sha256": "266e0e67080de0578f2a38351b158f68d151eeec462953e98c5f56edb3cfe3fc"
+        },
+        {
+          "path": "shnifter_order_events_cli.py",
+          "sha256": "2ffbbab5cf15205ace69d39db2f447b101480ae7995343db79ddbfbdaeb082f0"
+        },
+        {
+          "path": "shnifter_paper_cli.py",
+          "sha256": "1746160206d591df133b3019177701d2a21c24b3e3044beaa15652242646627c"
+        },
+        {
+          "path": "shnifter_paper_ledger.py",
+          "sha256": "cbc11cf4815ebc8763c40384f6642035fc7054d508f48c433e35d807ac08e4f0"
+        },
+        {
+          "path": "shnifter_paths.py",
+          "sha256": "90c0848f3c29b95634ccd6e7d08894d600b4b52a38222926dd184e16682912fb"
+        },
+        {
+          "path": "shnifter_replay.py",
+          "sha256": "3752173b198329bb084826780a38ab2abc1f01746d4131054d5935c4bfb2df73"
+        },
+        {
+          "path": "shnifter_research_cli.py",
+          "sha256": "9b6f1144bdcf21c6865e5967b2ffec379282e6e35c13606ae34f168dd9ec16dd"
+        },
+        {
+          "path": "shnifter_safe_output.py",
+          "sha256": "fff8d4e74bce518d15d15fdd59cd46968b2173f6b04b2d52153c2c31400fa482"
+        },
+        {
+          "path": "core/data_models.py",
+          "sha256": "52bf6d7ecacf7fd3f8ff1f3209c8d595a29ea1721d96e38a47f73a858744c3d7"
+        },
+        {
+          "path": "providers/yfinance_provider.py",
+          "sha256": "c8fa72ef1f739abb49e1b5c1717203163859d7e755648ca3daea8775de96cf64"
+        },
+        {
+          "path": "shnifterBB/shnifter_bb.py",
+          "sha256": "65ff347c12fd20c0de7b57d171820f5e1751a198cafbe273709e3548f9de4f2f"
+        }
+      ],
+      "mismatches": [],
+      "prohibited_paths": [],
+      "files": [
+        "shnifter_actions.py",
+        "shnifter_agent_api.py",
+        "shnifter_agent_cli.py",
+        "shnifter_agent_mcp.py",
+        "shnifter_analysis_core.py",
+        "shnifter_backtest_cli.py",
+        "shnifter_cli.py",
+        "shnifter_experiment_cli.py",
+        "shnifter_experiments.py",
+        "shnifter_oos_gate.py",
+        "shnifter_order_events.py",
+        "shnifter_order_events_cli.py",
+        "shnifter_paper_cli.py",
+        "shnifter_paper_ledger.py",
+        "shnifter_paths.py",
+        "shnifter_replay.py",
+        "shnifter_research_cli.py",
+        "shnifter_safe_output.py",
+        "core/data_models.py",
+        "providers/yfinance_provider.py",
+        "shnifterBB/shnifter_bb.py",
+        "shnifter_trader-0.2.0a1.dist-info/METADATA",
+        "shnifter_trader-0.2.0a1.dist-info/WHEEL",
+        "shnifter_trader-0.2.0a1.dist-info/entry_points.txt",
+        "shnifter_trader-0.2.0a1.dist-info/top_level.txt",
+        "shnifter_trader-0.2.0a1.dist-info/RECORD"
+      ]
+    },
+    {
+      "path": "shnifter_trader-0.2.0a1.tar.gz",
+      "bytes": 92675,
+      "sha256": "1dc31b4c1ba1f413c12d7231e7f2be23a123f296347e256bddeb2f619624fccf",
+      "member_count": 60,
+      "source_files_byte_matched": 39,
+      "matched_sources": [
+        {
+          "path": "core/data_models.py",
+          "sha256": "52bf6d7ecacf7fd3f8ff1f3209c8d595a29ea1721d96e38a47f73a858744c3d7"
+        },
+        {
+          "path": "providers/yfinance_provider.py",
+          "sha256": "c8fa72ef1f739abb49e1b5c1717203163859d7e755648ca3daea8775de96cf64"
+        },
+        {
+          "path": "setup.py",
+          "sha256": "9edd66940a5391e12b6389f6433533529226d498388550cd7d5f0fd60d879765"
+        },
+        {
+          "path": "shnifterBB/shnifter_bb.py",
+          "sha256": "65ff347c12fd20c0de7b57d171820f5e1751a198cafbe273709e3548f9de4f2f"
+        },
+        {
+          "path": "shnifter_actions.py",
+          "sha256": "798f6faef5b119ab937f81e32e16674dd7bd0717d66b8f273cb3c6fc09b69a47"
+        },
+        {
+          "path": "shnifter_agent_api.py",
+          "sha256": "b6eb65945fbd93c6e6f9df0273fb7db2ff533724c8d3f7c3c0ca0a53814051b3"
+        },
+        {
+          "path": "shnifter_agent_cli.py",
+          "sha256": "0f31599a96e3957482927ee75f26be2af54debe3e44b6b41755529a8ff06f500"
+        },
+        {
+          "path": "shnifter_agent_mcp.py",
+          "sha256": "d0781bdf7d04007192916c94578888b0918885473aad0c77b79136bfb7315596"
+        },
+        {
+          "path": "shnifter_analysis_core.py",
+          "sha256": "edbd7255791aaaccc3c96eb54888f006fc5c99180489c3fc2848572d8917edfb"
+        },
+        {
+          "path": "shnifter_backtest_cli.py",
+          "sha256": "d5eddbd6e5666cf090c598f4af7daa7964736f7f0d9320354757e5f7100a6a8d"
+        },
+        {
+          "path": "shnifter_cli.py",
+          "sha256": "ad811904c3472eb5cb9c2c0fe0d07095070bd8ef5c603173f876f240249f86d8"
+        },
+        {
+          "path": "shnifter_experiment_cli.py",
+          "sha256": "3440094674a565c1780ead2c2e2a89b9e46c974a779b5d7252d17d52bf554f20"
+        },
+        {
+          "path": "shnifter_experiments.py",
+          "sha256": "262a03df46e87e875e36315a797acf6a11c7e3b0d75725ceeca46970f33eba79"
+        },
+        {
+          "path": "shnifter_oos_gate.py",
+          "sha256": "a9b091578187ec65ae80523169933238cbde8ce9fa96c818932ba6fed4cc2a9d"
+        },
+        {
+          "path": "shnifter_order_events.py",
+          "sha256": "266e0e67080de0578f2a38351b158f68d151eeec462953e98c5f56edb3cfe3fc"
+        },
+        {
+          "path": "shnifter_order_events_cli.py",
+          "sha256": "2ffbbab5cf15205ace69d39db2f447b101480ae7995343db79ddbfbdaeb082f0"
+        },
+        {
+          "path": "shnifter_paper_cli.py",
+          "sha256": "1746160206d591df133b3019177701d2a21c24b3e3044beaa15652242646627c"
+        },
+        {
+          "path": "shnifter_paper_ledger.py",
+          "sha256": "cbc11cf4815ebc8763c40384f6642035fc7054d508f48c433e35d807ac08e4f0"
+        },
+        {
+          "path": "shnifter_paths.py",
+          "sha256": "90c0848f3c29b95634ccd6e7d08894d600b4b52a38222926dd184e16682912fb"
+        },
+        {
+          "path": "shnifter_replay.py",
+          "sha256": "3752173b198329bb084826780a38ab2abc1f01746d4131054d5935c4bfb2df73"
+        },
+        {
+          "path": "shnifter_research_cli.py",
+          "sha256": "9b6f1144bdcf21c6865e5967b2ffec379282e6e35c13606ae34f168dd9ec16dd"
+        },
+        {
+          "path": "shnifter_safe_output.py",
+          "sha256": "fff8d4e74bce518d15d15fdd59cd46968b2173f6b04b2d52153c2c31400fa482"
+        },
+        {
+          "path": "tests/test_shnifter_agent_interfaces.py",
+          "sha256": "7112b9c7c6993c7da66f18e3aacf961daf27b022d9aaaf0c1d4274a9f6bbf1a0"
+        },
+        {
+          "path": "tests/test_shnifter_agent_validation_audit.py",
+          "sha256": "b4405ace9054750ab300c8842d752bb6d6fa27883d74d4f90c51b16520aa9667"
+        },
+        {
+          "path": "tests/test_shnifter_backtest_cli.py",
+          "sha256": "71f680f2c59d11ae0724ffeba27aab02aa1b06ca6b099d394506cd9cc8356f31"
+        },
+        {
+          "path": "tests/test_shnifter_checkpoint.py",
+          "sha256": "f73769efb07ba21ee6195852eb6b165764c7a19e16f2cba060a37a75a0d5d56e"
+        },
+        {
+          "path": "tests/test_shnifter_cli.py",
+          "sha256": "a128a9516a70891ad7e12325c5eaa15c68a437df11916e75ecd423e5f359bb4c"
+        },
+        {
+          "path": "tests/test_shnifter_experiments.py",
+          "sha256": "eaf8de0ea24ade5994400534c70b0029f07936fca83adf7ebf2cc8f576a26c7b"
+        },
+        {
+          "path": "tests/test_shnifter_focused_runner.py",
+          "sha256": "cda9f4fdd8bc8580eb23e81ab6d8b70f509cceb8ef7050d4823605856b87c2c0"
+        },
+        {
+          "path": "tests/test_shnifter_lifecycle_boundaries.py",
+          "sha256": "4e5519891595e9a7157653e19221c42b6eff9a4cf14b3277f19226cd48115fc4"
+        },
+        {
+          "path": "tests/test_shnifter_mcp_stdio.py",
+          "sha256": "84eee6b9c55dff4f9cba62c20eae857f5b626f519853e80efd409d19e55a267b"
+        },
+        {
+          "path": "tests/test_shnifter_oos_gate.py",
+          "sha256": "62bf9cab9515cf5a7ef2edae16a49d8be8a51744f277f5d4a9ebec4ecd0615f7"
+        },
+        {
+          "path": "tests/test_shnifter_order_events.py",
+          "sha256": "13c42e384161cc0c9763b7290903b4f0058bb59cfb0cc6b0002d851e3fff87af"
+        },
+        {
+          "path": "tests/test_shnifter_order_events_cli.py",
+          "sha256": "1a6bc32493d17da708e5c0bb5c803340f9f123e095e73e54c9fc213409b3ca9c"
+        },
+        {
+          "path": "tests/test_shnifter_paper_cli.py",
+          "sha256": "031aaf59850de457e1d82df573587ee9d373341a85ab85fffdd2f93d968df69b"
+        },
+        {
+          "path": "tests/test_shnifter_paper_ledger.py",
+          "sha256": "7e598d1b4f08075e64b95387b965255d429e08ffce20d1e6c73b0ce1fb31d211"
+        },
+        {
+          "path": "tests/test_shnifter_replay.py",
+          "sha256": "fc3ae37f35571bec268bfb375144e09f2efbdb89a645a9b1af14a5ba4163f3a4"
+        },
+        {
+          "path": "tests/test_shnifter_research_integrity.py",
+          "sha256": "4581a721a6b2bc0a7f676d731f518b97c0bbb95f8858a7e238b46ec58058c4d5"
+        },
+        {
+          "path": "tools/run_shnifter_focused_tests.py",
+          "sha256": "5754eac0fb6f42f31480fd8bfa11c99db2ee2ac11368fa8009c3452926585e8e"
+        }
+      ],
+      "mismatches": [],
+      "prohibited_paths": [],
+      "files": [
+        "shnifter_trader-0.2.0a1",
+        "shnifter_trader-0.2.0a1/MANIFEST.in",
+        "shnifter_trader-0.2.0a1/PKG-INFO",
+        "shnifter_trader-0.2.0a1/README.md",
+        "shnifter_trader-0.2.0a1/core",
+        "shnifter_trader-0.2.0a1/core/data_models.py",
+        "shnifter_trader-0.2.0a1/docs",
+        "shnifter_trader-0.2.0a1/docs/PACKAGING_AND_PUBLIC_AUDIT_2026-10-20.md",
+        "shnifter_trader-0.2.0a1/docs/PAPER_CHECKPOINT_AND_V2_2026-10-20.md",
+        "shnifter_trader-0.2.0a1/providers",
+        "shnifter_trader-0.2.0a1/providers/yfinance_provider.py",
+        "shnifter_trader-0.2.0a1/pyproject.toml",
+        "shnifter_trader-0.2.0a1/setup.cfg",
+        "shnifter_trader-0.2.0a1/setup.py",
+        "shnifter_trader-0.2.0a1/shnifterBB",
+        "shnifter_trader-0.2.0a1/shnifterBB/shnifter_bb.py",
+        "shnifter_trader-0.2.0a1/shnifter_actions.py",
+        "shnifter_trader-0.2.0a1/shnifter_agent_api.py",
+        "shnifter_trader-0.2.0a1/shnifter_agent_cli.py",
+        "shnifter_trader-0.2.0a1/shnifter_agent_mcp.py",
+        "shnifter_trader-0.2.0a1/shnifter_analysis_core.py",
+        "shnifter_trader-0.2.0a1/shnifter_backtest_cli.py",
+        "shnifter_trader-0.2.0a1/shnifter_cli.py",
+        "shnifter_trader-0.2.0a1/shnifter_experiment_cli.py",
+        "shnifter_trader-0.2.0a1/shnifter_experiments.py",
+        "shnifter_trader-0.2.0a1/shnifter_oos_gate.py",
+        "shnifter_trader-0.2.0a1/shnifter_order_events.py",
+        "shnifter_trader-0.2.0a1/shnifter_order_events_cli.py",
+        "shnifter_trader-0.2.0a1/shnifter_paper_cli.py",
+        "shnifter_trader-0.2.0a1/shnifter_paper_ledger.py",
+        "shnifter_trader-0.2.0a1/shnifter_paths.py",
+        "shnifter_trader-0.2.0a1/shnifter_replay.py",
+        "shnifter_trader-0.2.0a1/shnifter_research_cli.py",
+        "shnifter_trader-0.2.0a1/shnifter_safe_output.py",
+        "shnifter_trader-0.2.0a1/shnifter_trader.egg-info",
+        "shnifter_trader-0.2.0a1/shnifter_trader.egg-info/PKG-INFO",
+        "shnifter_trader-0.2.0a1/shnifter_trader.egg-info/SOURCES.txt",
+        "shnifter_trader-0.2.0a1/shnifter_trader.egg-info/dependency_links.txt",
+        "shnifter_trader-0.2.0a1/shnifter_trader.egg-info/entry_points.txt",
+        "shnifter_trader-0.2.0a1/shnifter_trader.egg-info/requires.txt",
+        "shnifter_trader-0.2.0a1/shnifter_trader.egg-info/top_level.txt",
+        "shnifter_trader-0.2.0a1/tests",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_agent_interfaces.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_agent_validation_audit.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_backtest_cli.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_checkpoint.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_cli.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_experiments.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_focused_runner.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_lifecycle_boundaries.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_mcp_stdio.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_oos_gate.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_order_events.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_order_events_cli.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_paper_cli.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_paper_ledger.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_replay.py",
+        "shnifter_trader-0.2.0a1/tests/test_shnifter_research_integrity.py",
+        "shnifter_trader-0.2.0a1/tools",
+        "shnifter_trader-0.2.0a1/tools/run_shnifter_focused_tests.py"
+      ]
+    }
+  ]
+}

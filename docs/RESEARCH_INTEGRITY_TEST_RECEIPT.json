@@ -1,0 +1,56 @@
+{
+  "base_commit": "3ce098417ce37d5353e79594022b9580990af31f",
+  "scope": "assembled offline research source subset; NOT full repo or live trading",
+  "python": "3.13.5",
+  "packages": {
+    "pytest": "9.0.2",
+    "numpy": "2.3.5",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.8.0",
+    "fastapi": "0.128.2",
+    "httpx": "0.28.1"
+  },
+  "command": "python -m pytest -q tests --disable-warnings",
+  "passed_tests": 96,
+  "passed_subtests": 78,
+  "new_test_methods": 30,
+  "market_data": "synthetic only",
+  "live_authorized": false,
+  "changed_files": {
+    "shnifter_oos_gate.py": {
+      "sha256": "70fff1611266403091a81864c9b22f3cf02561a7d5233654355f0d07f316b670",
+      "git_blob_sha1": "fa6fce54e7519571394f5c6d72078a670ec7d5b1",
+      "bytes": 14676
+    },
+    "shnifter_research_cli.py": {
+      "sha256": "e36766f73e9800ab443e39c5d8da0efdade34694cd4fe6b6dbf063835854f7e5",
+      "git_blob_sha1": "b3a5ac7d11f440623365053dc5ee6b9a6cae97cb",
+      "bytes": 6042
+    },
+    "shnifter_safe_output.py": {
+      "sha256": "48ab9ecebfdbe42f32c8e3278c27760cc347b67e1973f2e844447e5afcb69fba",
+      "git_blob_sha1": "9b59dd18a3a46841a1fcb85888c060e93587e25e",
+      "bytes": 3339
+    },
+    "shnifter_agent_cli.py": {
+      "sha256": "70d3aeb93153e06b5006040f664caa225b9bdbe265cd41d78bf24f083c402ba6",
+      "git_blob_sha1": "2cb96fd88c5c30c9561e27370e709a841a1b57f4",
+      "bytes": 2838
+    },
+    "shnifter_backtest_cli.py": {
+      "sha256": "8a090f50768941aebdedca0cb0dea0544633a5706b4e247a0ec7e3b7b30147f0",
+      "git_blob_sha1": "26e1c7e29a5ffcc018fcd5e9089c139ddcd14e12",
+      "bytes": 5269
+    },
+    "tests/test_shnifter_oos_gate.py": {
+      "sha256": "0e957109b37a084bf0d55757a3b25cffb1aed440c41256d53954b052ac0f0c3e",
+      "git_blob_sha1": "ec10636141bc228209e9e067ea50b31dd51a0c98",
+      "bytes": 6487
+    },
+    "tests/test_shnifter_research_integrity.py": {
+      "sha256": "4f06710ebc21792458c100cf0c3e4ab42a0c76f4d18a3dfe3ff2533f15b0c127",
+      "git_blob_sha1": "c0843dbc1d115b9b2d46276430411071d5a2f243",
+      "bytes": 14170
+    }
+  }
+}
