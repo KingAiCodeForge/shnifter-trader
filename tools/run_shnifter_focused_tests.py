@@ -26,7 +26,7 @@ SUITES = {
                  "test_shnifter_oos_gate.py", "test_shnifter_research_integrity.py"],
     "paper": ["test_shnifter_paper_ledger.py", "test_shnifter_paper_cli.py"],
     "lifecycle": ["test_shnifter_order_events.py", "test_shnifter_order_events_cli.py",
-                  "test_shnifter_lifecycle_boundaries.py"],
+                  "test_shnifter_lifecycle_boundaries.py", "test_shnifter_checkpoint.py"],
     "runner": ["test_shnifter_focused_runner.py"],
 }
 

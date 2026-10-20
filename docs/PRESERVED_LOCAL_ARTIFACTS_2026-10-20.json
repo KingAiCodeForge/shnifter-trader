@@ -1,0 +1,45 @@
+{
+  "purpose": "Preserve public-branch local artifacts without including their contents in release assets. Exact bytes remain in original refs and local files.",
+  "files": [
+    {
+      "path": "llm_config.json",
+      "bytes": 6308,
+      "sha256": "b108f86151019b126f2a9d87fa8ce8cdbcfa0151e82a747bfb71312e1f47d9fb"
+    },
+    {
+      "path": "data/model_history.json",
+      "bytes": 175,
+      "sha256": "393fdd06c10b3d61aa14e8825e343fac2daa8f9d10e6774263948c024df9606a"
+    },
+    {
+      "path": "data/provider_history.json",
+      "bytes": 189,
+      "sha256": "69e2d32d0366284af4509d831674f5c91136827e07e77690dfc0ea69d77981e2"
+    },
+    {
+      "path": "data/shnifter_trading.db",
+      "bytes": 24576,
+      "sha256": "fb19d1af409d0b4661f67d76700ea207680030889325a6b642275a22a8da0b8c"
+    },
+    {
+      "path": "pytest_output.txt",
+      "bytes": 5744,
+      "sha256": "d4ec1a7d8b6061509ffb3913befad1007c9a31f39cd3d54e743e89fdbf349ebb"
+    },
+    {
+      "path": "core/__pycache__/data_models.cpython-313.pyc",
+      "bytes": 3104,
+      "sha256": "9c1e76a24954a6f4f18e9c1fdca8817e9624a0175415d0a9d462d01ea01f591d"
+    },
+    {
+      "path": "providers/__pycache__/yfinance_provider.cpython-313.pyc",
+      "bytes": 3228,
+      "sha256": "9a9c73521ab229505d276e69de0e3ab67b6ebcff7ef59489afc930cb0b6a4233"
+    },
+    {
+      "path": "toolkits/__pycache__/technicals_toolkit.cpython-313.pyc",
+      "bytes": 1445,
+      "sha256": "95bc6af61b5c704e2f1eef2dae6810ce1ce04a2f377dca8e080c22f508c87d0c"
+    }
+  ]
+}

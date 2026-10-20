@@ -1,0 +1,186 @@
+{
+  "scope": "Fresh isolated base installation, console entry point from unrelated path with spaces; synthetic fixtures only, no network/broker/GUI/optional adapters. Package module bytes separately matched to source.",
+  "tests": [
+    {
+      "name": "help",
+      "exit_code": 0,
+      "stdout_sha256": "6d7223e00c13e37b14c8280d69adcd8eccadce4204ed305fca7382a7d5422402",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "read-only action catalogue",
+      "exit_code": 0,
+      "stdout_sha256": "2002aab41dfefcd42eefce9be363b2a9d601838d28d839c6853fde46233a41fc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "optional market dependency absent clear error",
+      "exit_code": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "aeddb16749041caf0b608a54fe71278ab53ad4b56adbffa60af33b6247207f2d"
+    },
+    {
+      "name": "offline installed analysis output with spaces",
+      "exit_code": 0,
+      "stdout_sha256": "3c0a9de695aefa0bdeaef5d2287005633e8d5275fca7fe924646c391c42ae6bf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "offline replay output with spaces",
+      "exit_code": 0,
+      "stdout_sha256": "0b076689e5aaa8004637479850e76760b91ec7d379cfb0d3b32cbe788c58771e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "analysis source collision is refused",
+      "exit_code": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "cc01e43f42daab02a27e647566c44cb20b758ddb4491789aa554ff8c2afff2a5"
+    },
+    {
+      "name": "missing input controlled failure",
+      "exit_code": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d9f62e56baaaa0cdbd4af749cb3788ff8f2be7c8ead9f31b8ccd6bafefffe737"
+    },
+    {
+      "name": "invalid argument controlled usage failure",
+      "exit_code": 2,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "6755890d6c1a220fbb6470b11b098debb1ebf30419e266e3051796120b6b910b"
+    },
+    {
+      "name": "new explicit v2 database",
+      "exit_code": 0,
+      "stdout_sha256": "4ef0943cc64a4063806c7340ed69f6d6d93e69c74dc123fd773bfa0bb868916b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "local simulated halt",
+      "exit_code": 0,
+      "stdout_sha256": "5fc3343243616a37317837cceaf75c9bb2e9936aedc6cb0ceef3b2faf0a249c8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "checkpoint export",
+      "exit_code": 0,
+      "stdout_sha256": "76e778e00028c17845663ffed0c3d94562c02de8be21452042c2f047cb355475",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "trusted checkpoint verification",
+      "exit_code": 0,
+      "stdout_sha256": "1cb66362618a400d9f2f089b5b1f62ca4612a7e48a9692e76ce085d4ff2d6feb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "checkpoint no clobber",
+      "exit_code": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "2b6e11827c2c8fd0234307c9aae883cf06dc11d56f1222f7d47d0f4455d1c0b2"
+    },
+    {
+      "name": "halt blocks staged paper buy",
+      "exit_code": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "1d6f69bb23506a2cf49f1d2920836be73a0eeeba1a2ea6538e7c010567815f86"
+    }
+  ],
+  "count": 14,
+  "wheel_sha256": "3bcdf0119e409b716187ab55f513dafe054fc032703ada3da6fdb02f0dff225a",
+  "python": "Python 3.13.5",
+  "installed_dependencies": [
+    {
+      "name": "annotated-types",
+      "version": "0.8.0"
+    },
+    {
+      "name": "certifi",
+      "version": "2026.10.19"
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.2"
+    },
+    {
+      "name": "cloudpickle",
+      "version": "3.1.2"
+    },
+    {
+      "name": "idna",
+      "version": "3.20"
+    },
+    {
+      "name": "joblib",
+      "version": "1.6.0"
+    },
+    {
+      "name": "narwhals",
+      "version": "2.27.1"
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.4"
+    },
+    {
+      "name": "pandas",
+      "version": "3.0.6"
+    },
+    {
+      "name": "pip",
+      "version": "25.1.1"
+    },
+    {
+      "name": "pydantic",
+      "version": "2.14.1"
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.50.1"
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0"
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2"
+    },
+    {
+      "name": "scikit-learn",
+      "version": "1.9.1"
+    },
+    {
+      "name": "scipy",
+      "version": "1.18.1"
+    },
+    {
+      "name": "shnifter-trader",
+      "version": "0.2.0a1"
+    },
+    {
+      "name": "six",
+      "version": "1.17.0"
+    },
+    {
+      "name": "threadpoolctl",
+      "version": "3.7.0"
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0"
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.4"
+    },
+    {
+      "name": "tzdata",
+      "version": "2026.5"
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0"
+    }
+  ]
+}

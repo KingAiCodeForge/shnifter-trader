@@ -3,6 +3,7 @@
 All orders/fills are local simulation inputs, not broker interactions.
 """
 from __future__ import annotations
+from contextlib import closing
 
 import copy
 import json
@@ -226,7 +227,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertEqual(state, before)
 
     def test_v1_database_cannot_be_silently_reinterpreted(self):
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             db.execute("UPDATE metadata SET version='shnifter.paper-events.v1'")
         original = self.db.read_bytes()
         with self.assertRaisesRegex(IntegrityError, 'version'):
@@ -236,7 +237,7 @@ class BoundaryTests(unittest.TestCase):
     def test_malformed_saved_envelope_is_controlled_integrity_failure(self):
         # Recompute the hash intentionally: schema validation must work independently
         # of content hashes. This is a corrupted local fixture, not external evidence.
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             db.execute('DROP TRIGGER events_no_update')
             seq, eid, at, _, prev, _ = db.execute('SELECT * FROM events').fetchone()
             text = 'null'
@@ -265,7 +266,7 @@ class BoundaryTests(unittest.TestCase):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 h = pool.submit(halt); t = pool.submit(transmit)
                 h.result(timeout=10); sent = t.result(timeout=10)
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 sequences = dict(db.execute('SELECT event_id,seq FROM events'))
             state = PaperEventStore(path).status()
             self.assertTrue(state['manual_halt'])
@@ -278,7 +279,7 @@ class BoundaryTests(unittest.TestCase):
     def test_corrupted_envelope_cli_returns_structured_error_not_traceback(self):
         import io
         from shnifter_cli import main
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             db.execute('DROP TRIGGER events_no_update')
             seq, eid, at, _, prev, _ = db.execute('SELECT * FROM events').fetchone()
             text = 'null'

@@ -14,6 +14,8 @@ import requests
 import os
 import csv
 import json
+import io
+from shnifter_safe_output import atomic_write_text
 
 # GUI components
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -57,12 +59,12 @@ except ImportError as e:
     print(f"Warning: Some analysis modules not available: {e}")
     ANALYSIS_MODULES_AVAILABLE = False
 
-# Ensure VADER lexicon is available for sentiment analysis
+# No dependency downloads during import or launch. Install lexicon explicitly.
 try:
-    nltk.data.find('sentiment/vader_lexicon.zip')
+    analyzer = SentimentIntensityAnalyzer()
 except LookupError:
-    nltk.download('vader_lexicon')
-analyzer = SentimentIntensityAnalyzer()
+    analyzer = None
+    EventLog.emit("WARNING", "VADER lexicon missing; sentiment unavailable. Install it explicitly with python -m nltk.downloader vader_lexicon.")
 
 # Ollama integration to explain signals
 def query_ollama(prompt, context="", model="llama3"):
@@ -201,6 +203,8 @@ class AnalysisWorker(QThread):
             if not headlines:
                 log.append("    - News found, but no valid titles for analysis.")
                 return 'HOLD', log
+            if analyzer is None:
+                raise ValueError("VADER lexicon missing; sentiment analysis is unavailable")
             scores = [analyzer.polarity_scores(h)['compound'] for h in headlines]
             avg_score = np.mean(scores)
             log.append(f"    - Avg Score: {avg_score:.3f} from {len(headlines)} headlines")
@@ -215,15 +219,17 @@ class Exporter:
     """Handles exporting logs and signals to CSV/JSON."""
     @staticmethod
     def export_to_csv(filename, data, fieldnames=None):
-        with open(filename, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames or data[0].keys())
-            writer.writeheader()
-            writer.writerows(data)
+        if not data and not fieldnames:
+            raise ValueError("CSV export requires rows or explicit field names")
+        buffer = io.StringIO(newline='')
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames or data[0].keys())
+        writer.writeheader()
+        writer.writerows(data)
+        atomic_write_text(filename, buffer.getvalue())
 
     @staticmethod
     def export_to_json(filename, data):
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        atomic_write_text(filename, json.dumps(data, indent=2, ensure_ascii=False))
 
 class BacktestWorker(QThread):
     """Worker thread to run backtests in the background, preventing UI freezes."""
@@ -893,10 +899,7 @@ class MainWindow(QMainWindow):
             })
         fieldnames = ['Ticker', 'Decision', 'LLM Summary']
         try:
-            with open(filename, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(data)
+            Exporter.export_to_csv(filename, data, fieldnames)
             self.log_display.append(f"Exported last decisions to {filename}.")
         except Exception as e:
             self.log_display.append(f"Failed to export last decisions: {e}")

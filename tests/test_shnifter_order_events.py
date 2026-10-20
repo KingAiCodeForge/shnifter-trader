@@ -1,4 +1,5 @@
 """Offline paper lifecycle, concurrency and crash tests; no quotes/broker calls."""
+from contextlib import closing
 import copy
 import json
 import os
@@ -307,7 +308,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_other_database_is_rejected_without_mutation(self):
         foreign = self.db.with_name('foreign.sqlite')
-        with sqlite3.connect(foreign) as db:
+        with closing(sqlite3.connect(foreign)) as db, db:
             db.execute('CREATE TABLE originals(x)')
         before = foreign.read_bytes()
         with self.assertRaises(IntegrityError):
@@ -316,7 +317,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_hash_tampering_is_detected(self):
         self.started()
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             db.execute('DROP TRIGGER events_no_update')
             db.execute("UPDATE events SET recorded_at='changed' WHERE seq=2")
         with self.assertRaises(IntegrityError):
@@ -325,7 +326,7 @@ class LifecycleTests(unittest.TestCase):
             self.submit('new')
 
     def test_normal_sql_mutation_is_blocked(self):
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             with self.assertRaises(sqlite3.IntegrityError):
                 db.execute('DELETE FROM events')
             with self.assertRaises(sqlite3.IntegrityError):

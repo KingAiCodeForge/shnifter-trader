@@ -4,6 +4,7 @@ Uses actual source files with lightweight stubs for Qt-dependent EventLog and
 market data. Does not import the global data_manager or contact a broker.
 """
 from __future__ import annotations
+from contextlib import closing
 
 import ast
 import asyncio
@@ -59,12 +60,24 @@ def load_source(relative_path: str, *, strip_global_manager: bool = False):
     spec = importlib.util.spec_from_file_location(
         "_shnifter_isolated_" + path.stem, str(path))
     module = importlib.util.module_from_spec(spec)
-    with patch.dict(sys.modules, {
+    replacements = {
+        spec.name: module,  # dataclasses resolves postponed annotations here.
         "core.events": fake_events,
         "shnifterBB.shnifter_bb": fake_obb,
         "core.data_models": fake_models,
-    }):
+    }
+    previous = {name: sys.modules.get(name) for name in replacements}
+    sys.modules.update(replacements)
+    try:
         exec(compile(parsed, str(path), "exec"), module.__dict__)
+    finally:
+        # Preserve unrelated imports made by the real source. Restoring the
+        # entire sys.modules dictionary can unload/reimport NumPy extensions.
+        for name, old in previous.items():
+            if old is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = old
     return module
 
 
@@ -176,7 +189,7 @@ class LegacyDBTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "trade_id is required"):
             manager.close_trade("AAPL", 120)
         manager.close_trade("AAPL", 120, trade_id=ids[0])
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn, conn:
             status = dict(conn.execute("SELECT id,status FROM trades"))
         self.assertEqual(status[ids[0]], "closed")
         self.assertEqual(status[ids[1]], "open")
@@ -204,7 +217,7 @@ class LegacyDBTests(unittest.TestCase):
             with self.assertRaises(sqlite3.OperationalError):
                 manager.close_trade("AAPL", 120, trade_id=trade.trade_id)
         self.assertEqual(trade.status, "open")
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn, conn:
             self.assertEqual(conn.execute("SELECT status FROM trades").fetchone()[0],
                              "open")
 
@@ -212,7 +225,7 @@ class LegacyDBTests(unittest.TestCase):
         manager = self.manager
         manager.add_trade("AAPL", 100, 1)
         oldest_id = manager.portfolio.get_open_trades()[0].trade_id
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn, conn:
             conn.executemany(
                 "INSERT INTO trades(ticker,entry_price,size,direction,status,pnl) "
                 "VALUES('MSFT',100,1,'long','closed',?)",

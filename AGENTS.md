@@ -52,3 +52,16 @@ Avoid embedding UI, network I/O, secrets, or broker operations in signal math.
   validated broker fill or a real market price.
 - Financial profit cannot be asserted without verified out-of-sample
   market data, all-in friction and actual forward/broker evidence.
+
+
+## Experiment registry for coding agents
+
+- Explicit opt-in save: `python shnifter_cli.py backtest run --csv prices.csv --ticker AAPL --registry-db experiments.sqlite`.
+- Read-only listings: `python shnifter_cli.py experiments list --registry-db experiments.sqlite`.
+- Verify saved input/output hashes and deterministic replay: `python shnifter_cli.py experiments verify --registry-db experiments.sqlite --id <sha256>`.
+- Never pass the trading portfolio SQLite database as a research registry.
+- Agent-accessible MCP/REST actions remain read-only. File recording is
+  **not** a currently registered MCP or REST action.
+- The recorded data source description is unverified metadata, not proof of
+  historical point-in-time availability. Recorded experiments are research
+  artifacts, not live trading results.

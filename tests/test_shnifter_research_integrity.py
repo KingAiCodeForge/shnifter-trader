@@ -126,7 +126,7 @@ class OutputTests(unittest.TestCase):
 
     def test_new_output_is_complete_utf8(self):
         atomic_write_text(self.output, '{"note":"α"}\n')
-        self.assertEqual(json.loads(self.output.read_text())['note'], 'α')
+        self.assertEqual(json.loads(self.output.read_text(encoding='utf-8'))['note'], 'α')
         self.assertEqual(list(self.root.glob('*.tmp')), [])
 
     def test_refuses_existing_file_without_permission(self):

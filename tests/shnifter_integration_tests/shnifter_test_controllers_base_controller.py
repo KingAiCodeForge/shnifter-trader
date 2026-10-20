@@ -13,7 +13,7 @@ from shnifter_interface.controllers.base_controller import BaseController
 # pylint: disable=unused-argument, unused-variable
 
 
-class TestShnifter\1(BaseController):
+class TestableBaseController(BaseController):
     """Testable Base Controller."""
 
     def __init__(self, queue=None):

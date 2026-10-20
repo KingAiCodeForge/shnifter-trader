@@ -309,3 +309,54 @@ the existing legacy trading SQLite database as the isolated paper ledger.
 
 See docs/PROFITABILITY_EVIDENCE_GATE_2026-10-17.md for validation assumptions
 and the remaining real-money release conditions.
+
+
+## Opt-in research experiment registry
+
+Historical backtests can now be preserved in a **separate local SQLite**
+database with complete bar snapshots, full replay results, SHA256 content
+hashes and a stable experiment ID. Recording is optional:
+
+```bash
+python shnifter_cli.py backtest run --csv historical_daily.csv --ticker AAPL --registry-db research_experiments.sqlite
+python shnifter_cli.py experiments list --registry-db research_experiments.sqlite
+python shnifter_cli.py experiments verify --registry-db research_experiments.sqlite --id YOUR_EXPERIMENT_SHA256
+```
+
+The backtest is still read-only by default; `--registry-db` is an explicit local
+file write. Saved results are recomputed from the stored daily OHLCV history
+and can be checked for accidental changes. **This does not validate the data
+feed or guarantee any returns.** See
+[Experiment Registry](docs/EXPERIMENT_REGISTRY_2026-10-17.md).
+
+## Experimental package scope (20 October 2026)
+
+Version `0.2.0a1` is an alpha for research CLI and explicit local paper simulation.
+Install in a fresh environment with `python -m pip install .`; use `[market]`
+for optional yfinance history, `[api]` for the local HTTP adapter, or `[agents]`
+for the MCP SDK 1.29+ adapter (host qualification is reported separately). The wheel intentionally excludes
+legacy GUI/prototype trees and the copied framework. GUI source checks are
+reported separately; installing the wheel does not install the GUI application.
+`requirements.txt` selects source-checkout GUI/development extras; it no longer
+requests every experimental ML framework and broker SDK at once.
+
+Runtime GUI logs/configuration and legacy simulation state use the user data
+folder, or an absolute `SHNIFTER_DATA_DIR` override. No existing cwd `data/`
+ledger is renamed, imported, or deleted. Set the override explicitly to inspect
+an isolated fixture. Local databases/model discovery files remain ignored;
+reviewed `tests/test_shnifter*.py` regressions are eligible for public tracking.
+The setup/scaffold scripts preserve existing environments and prototype files.
+
+No MIT licence is asserted: no repository licence file exists and copied
+framework provenance/AGPL obligations require review before a full-source
+release. See `docs/PACKAGING_AND_PUBLIC_AUDIT_2026-10-20.md` and the per-script
+static ledger for exact scope and remaining limits.
+
+The fresh combined source run passed 279 methods plus 174 subtests; the clean
+installed-package checks passed 14/14. Exact scope, source/artifact hashes and
+remaining release holds are recorded in
+[Integration Qualification](docs/INTEGRATION_QUALIFICATION_2026-10-20.md).
+For v1 database preservation, separate new v2 simulations and the limits of
+detached rollback anchors, read
+[Paper Checkpoints and Version 2](docs/PAPER_CHECKPOINT_AND_V2_2026-10-20.md).
+These results qualify only the documented software research/paper scope.

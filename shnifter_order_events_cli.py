@@ -29,6 +29,11 @@ def register_order_events(subparsers) -> None:
     for name in ("status", "verify"):
         read = commands.add_parser(name, help="Rebuild and verify saved paper events without writing")
         read.add_argument("--db", type=Path, required=True)
+        read.add_argument("--checkpoint", type=Path, help="Anchor from independently trusted storage; detects rollback only through its event")
+    checkpoint = commands.add_parser("checkpoint", help="Export a snapshot anchor; preserve it in independently trusted storage")
+    checkpoint.add_argument("--db", type=Path, required=True)
+    checkpoint.add_argument("--checkpoint", type=Path, help="Validate an existing trusted anchor before exporting")
+    checkpoint.add_argument("--output", type=Path, required=True, help="New anchor file; never overwrites existing files")
     descriptions = {
         "submit": "Reserve a simulated LIMIT-order intent, without a fill",
         "transmit": "Record simulated transmission, without network activity",
@@ -44,6 +49,7 @@ def register_order_events(subparsers) -> None:
     for name, description in descriptions.items():
         command = commands.add_parser(name, help=description)
         command.add_argument("--db", type=Path, required=True)
+        command.add_argument("--checkpoint", type=Path, help="Anchor from independently trusted storage; fails closed on mismatch")
         command.add_argument("--event-id", required=True, help="Stable idempotency key; reuse only for the SAME event")
         if name != "halt":
             command.add_argument("--order-id", required=True)
@@ -75,9 +81,30 @@ def run_order_events(args, *, stdout=None, stderr=None) -> int:
             result = PaperEventStore.create(args.db, initial_cash=args.initial_cash,
                 max_order_value=args.max_order_value, max_total_value=args.max_total_value).status()
         else:
-            store = PaperEventStore(args.db)
+            anchor = None
+            anchor_path = getattr(args, "checkpoint", None)
+            if anchor_path is not None:
+                if anchor_path.is_symlink() or not anchor_path.is_file() or anchor_path.stat().st_size > 4096:
+                    raise ValueError("checkpoint must be a small, regular, non-symlink JSON file")
+                anchor = json.loads(anchor_path.read_text(encoding="utf-8"))
+                anchor = PaperEventStore.validate_checkpoint(anchor)
+            store = PaperEventStore(args.db, checkpoint=anchor)
             if args.action in ("status", "verify"):
                 result = getattr(store, args.action)()
+            elif args.action == "checkpoint":
+                from shnifter_safe_output import atomic_write_text
+                result = store.status()
+                protected = [args.db, Path(str(args.db) + "-wal"), Path(str(args.db) + "-shm")]
+                if anchor_path is not None:
+                    protected.append(anchor_path)
+                from shnifter_order_events import CHECKPOINT_VERSION
+                exported = {"format": CHECKPOINT_VERSION, "engine": result["engine"],
+                            "event_count": result["event_count"], "head_hash": result["head_hash"]}
+                atomic_write_text(args.output, json.dumps(exported, indent=2) + "\n",
+                                  protected=protected)
+                result["checkpoint_exported"] = True
+                result["checkpoint_note"] = ("Export is not independent trust. Preserve externally; "
+                                             "rollback after this event remains undetectable.")
             else:
                 kind = args.action.upper().replace("-", "_")
                 data = {"order_id": args.order_id} if args.action != "halt" else {}

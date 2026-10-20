@@ -1,6 +1,8 @@
 @echo off
-REM =============================================
-REM Open a new Command Prompt with the .venv environment activated
-REM =============================================
-
-start cmd /k ".venv\Scripts\activate.bat && echo [INFO] .venv is now active. To launch the Shnifter Trader frontend, run: && echo     py Multi_Model_Trading_Bot.py && echo [INFO] Or, to run the Multi-Modal Trading Bot, use: && echo     py Multi_Model_Trading_Bot.py"
+REM Explicitly requested interactive environment shell.
+if not exist "%~dp0.venv\Scripts\activate.bat" (
+    echo ERROR: Environment missing. Run start_shnifter_setup.bat first. 1>&2
+    exit /b 1
+)
+cmd /k ""%~dp0.venv\Scripts\activate.bat""
+exit /b %errorlevel%

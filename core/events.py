@@ -14,6 +14,7 @@ import time
 from collections import defaultdict
 from typing import Dict, Any, Callable, List
 from PySide6.QtCore import QObject, Signal
+from shnifter_paths import data_directory
 
 class Event:
     """A structured data class for events passing through the bus."""
@@ -304,7 +305,9 @@ class EventLog:
         
         # File logging (non-blocking)
         try:
-            with open("shnifter_log.txt", "a", encoding='utf-8') as f:
+            log_path = data_directory() / "shnifter_log.txt"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("a", encoding='utf-8') as f:
                 f.write(json.dumps(event, ensure_ascii=False) + "\n")
         except Exception as e:
             print(f"Failed to write log to file: {e}")
@@ -390,24 +393,27 @@ class EventLog:
 
     @staticmethod
     def export_logs_txt(filename='shnifter_log.txt'):
-        with open(filename, 'w', encoding='utf-8') as f:
-            for event in EventLog.logs:
-                f.write(f"[{event['timestamp']}] [{event['level']}] {event['message']}\n")
+        from shnifter_safe_output import atomic_write_text
+        text = ''.join(f"[{event['timestamp']}] [{event['level']}] {event['message']}\n" for event in EventLog.logs)
+        atomic_write_text(filename, text, protected=(data_directory() / 'shnifter_log.txt',))
 
     @staticmethod
     def export_logs_json(filename='shnifter_log.json'):
         if EventLog.logs:
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(EventLog.logs, f, indent=2, ensure_ascii=False)
+            from shnifter_safe_output import atomic_write_text
+            atomic_write_text(filename, json.dumps(EventLog.logs, indent=2, ensure_ascii=False))
 
     @staticmethod
     def export_logs_csv(filename='shnifter_log.csv'):
         import csv
         if EventLog.logs:
-            with open(filename, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=EventLog.logs[0].keys())
-                writer.writeheader()
-                writer.writerows(EventLog.logs)
+            import io
+            from shnifter_safe_output import atomic_write_text
+            buffer = io.StringIO(newline='')
+            writer = csv.DictWriter(buffer, fieldnames=EventLog.logs[0].keys())
+            writer.writeheader()
+            writer.writerows(EventLog.logs)
+            atomic_write_text(filename, buffer.getvalue())
 
 class ShnifterEventEmitter(QObject):
     """Qt signal emitter for GUI integration.

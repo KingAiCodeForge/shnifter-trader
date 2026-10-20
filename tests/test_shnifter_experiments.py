@@ -1,5 +1,6 @@
 """Offline regression tests for auditable, explicitly opt-in replay registry."""
 from __future__ import annotations
+from contextlib import closing
 
 import csv
 import io
@@ -86,12 +87,12 @@ class ExperimentTests(unittest.TestCase):
         self.assertFalse(self.db.exists())
 
     def test_existing_unrelated_database_left_untouched(self):
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             conn.execute('CREATE TABLE another_service (secret TEXT)')
             conn.execute("INSERT INTO another_service VALUES ('do_not_modify')")
         with self.assertRaisesRegex(ValueError, 'not a Shnifter'):
             self._write()
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             tables = [row[0] for row in conn.execute('SELECT name FROM sqlite_master WHERE type="table"')]
             value = conn.execute('SELECT secret FROM another_service').fetchone()[0]
         self.assertEqual(tables, ['another_service'])
@@ -112,7 +113,7 @@ class ExperimentTests(unittest.TestCase):
 
     def test_update_and_delete_are_blocked(self):
         saved = self._write()
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             with self.assertRaises(sqlite3.IntegrityError):
                 conn.execute('UPDATE experiments SET run_id=? WHERE experiment_id=?',
                              ('bad', saved['experiment_id']))
@@ -123,7 +124,7 @@ class ExperimentTests(unittest.TestCase):
 
     def test_tampered_report_is_detected(self):
         saved = self._write()
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             conn.execute('DROP TRIGGER no_experiment_changes')
             conn.execute('UPDATE experiments SET report_json=? WHERE experiment_id=?',
                          ('{"some":"fake result"}', saved['experiment_id']))

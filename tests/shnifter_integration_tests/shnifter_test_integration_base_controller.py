@@ -14,7 +14,7 @@ from shnifter_interface.session import Session
 # pylint: disable=unused-variable, redefined-outer-name
 
 
-class TestShnifter\1(BaseController):
+class TestController(BaseController):
     """Test controller for the BaseController."""
 
     PATH = "/test/"

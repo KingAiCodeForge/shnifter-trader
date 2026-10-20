@@ -80,3 +80,18 @@ Profitability is an empirical result, never a feature assertion.
 - Remaining: GUI smoke check, MCP v2 host handshake, full cross-module test
   suite, paper ledger/idempotency, supervised paper deployment, and optional
   bounded LLM research.
+
+
+## Experiment registry — 2026-10-17
+
+- Added opt-in local SQLite research storage in `shnifter_experiments.py`.
+  Snapshots include the exact input bars and entire deterministic replay.
+- Adds `--registry-db` to `backtest run`, plus CLI `experiments list`
+  and `experiments verify`. The report is recalculated before record and
+  verification. Experiment IDs and content hashes are stable.
+- Recording is deliberately *not* accessible via the shared MCP/HTTP
+  research action allowlist. Ordinary backtest behaviour remains read-only.
+- Next task: immutable **failed**-trial records, code/data versioning,
+  sealed chronological holdout evaluation and baseline strategy comparisons.
+- Tested offline with synthetic fixtures; live trading and full GUI still
+  remain explicitly out of scope.

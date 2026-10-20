@@ -11,6 +11,7 @@ backend trading logic to frontend components. It manages:
 
 import json
 import sqlite3
+from contextlib import closing
 import threading
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Callable
@@ -18,6 +19,7 @@ from dataclasses import dataclass, asdict
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from shnifter_paths import data_directory
 
 from core.shnifter_trade import Trade, Portfolio
 from core.events import EventLog
@@ -84,9 +86,9 @@ class ShnifterDataManager:
     Manages trading stats, model performance, market data, and notifications.
     """
     
-    def __init__(self, db_path: str = "data/shnifter_trading.db"):
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(exist_ok=True)
+    def __init__(self, db_path: str = None):
+        self.db_path = Path(db_path) if db_path is not None else data_directory() / "legacy_simulation.db"
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Thread safety
         self._lock = threading.RLock()
@@ -123,7 +125,7 @@ class ShnifterDataManager:
 
     def _init_database(self):
         """Initialize SQLite database for persistent storage"""
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS trades (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,7 +187,7 @@ class ShnifterDataManager:
     def _load_data(self):
         """Load existing data from database"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 # Load recent trading stats
                 stats_df = pd.read_sql_query(
                     "SELECT * FROM trading_stats ORDER BY timestamp DESC LIMIT 1",
@@ -541,7 +543,7 @@ class ShnifterDataManager:
 
         DB errors propagate; callers must not mutate in-memory holdings first.
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
             cursor = conn.execute("""
                 INSERT INTO trades (ticker, entry_price, size, direction,
                                     stop_loss, take_profit, status,
@@ -568,7 +570,7 @@ class ShnifterDataManager:
             pnl = (trade.entry - exit_price) * trade.size
         else:
             raise ValueError("Unsupported simulated trade direction")
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
             cursor = conn.execute("""
                 UPDATE trades
                 SET exit_price = ?, status = 'closed', pnl = ?, close_time = ?
@@ -581,7 +583,7 @@ class ShnifterDataManager:
         """Save model performance to database"""
         try:
             perf = self.model_performance[model_name]
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO model_performance 
                     (model_name, accuracy, precision_score, recall_score, f1_score,
@@ -599,7 +601,7 @@ class ShnifterDataManager:
         """Save trading stats to database"""
         try:
             stats = self.trading_stats
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 conn.execute("""
                     INSERT INTO trading_stats 
                     (total_pnl, unrealized_pnl, realized_pnl, win_rate, total_trades,

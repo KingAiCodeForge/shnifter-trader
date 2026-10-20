@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 VERSION = "shnifter.paper-events.v2"
+CHECKPOINT_VERSION = "shnifter.paper-events.checkpoint.v1"
 APPLICATION_ID = 0x53485045
 MAX_EVENTS = 10000  # New-entry admission limit, NOT a kill-switch/write limit.
 MAX_INTEGER = 10**12
@@ -364,10 +365,42 @@ def _path(value: str | Path) -> Path:
 
 class PaperEventStore:
     """One isolated local paper account. Not interchangeable with old ledgers."""
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path, *, checkpoint: dict | None = None):
         self.path = _path(path)
         if not self.path.is_file():
             raise FileNotFoundError("paper-events database does not exist; initialise explicitly")
+        # The caller must obtain this anchor from independently trusted storage.
+        # An adjacent, replaceable file cannot establish database freshness.
+        self.checkpoint = self.validate_checkpoint(checkpoint) if checkpoint is not None else None
+
+    @staticmethod
+    def validate_checkpoint(value: dict) -> dict:
+        fields(value, {"format", "engine", "event_count", "head_hash"})
+        if value["format"] != CHECKPOINT_VERSION or value["engine"] != VERSION:
+            raise IntegrityError("unsupported paper-events checkpoint version")
+        integer(value["event_count"], "checkpoint event_count")
+        if type(value["head_hash"]) is not str or not re.fullmatch(r"[0-9a-f]{64}", value["head_hash"]):
+            raise IntegrityError("invalid checkpoint head_hash")
+        return copy.deepcopy(value)
+
+    def _check_checkpoint(self, db, count: int) -> None:
+        if self.checkpoint is None:
+            return
+        anchor = self.checkpoint
+        if count < anchor["event_count"]:
+            raise IntegrityError("database rollback: shorter than trusted checkpoint; preserve both files")
+        row = db.execute("SELECT event_hash FROM events WHERE seq=?",
+                         (anchor["event_count"],)).fetchone()
+        if row != (anchor["head_hash"],):
+            raise IntegrityError("database does not contain trusted checkpoint; preserve both files")
+
+    def _checkpoint_receipt(self, result: dict) -> dict:
+        result.update(checkpoint_verified=self.checkpoint is not None,
+                      checkpoint_event_count=self.checkpoint["event_count"] if self.checkpoint else None,
+                      events_after_checkpoint=(result["event_count"] - self.checkpoint["event_count"]
+                                               if self.checkpoint else None),
+                      freshness_proven=False)
+        return result
 
     @classmethod
     def create(cls, path: str | Path, *, initial_cash="10000", max_order_value="1000",
@@ -401,7 +434,8 @@ class PaperEventStore:
             if db.execute("PRAGMA application_id").fetchone()[0] != APPLICATION_ID:
                 raise IntegrityError("not a Shnifter paper-events database")
             if db.execute("SELECT version FROM metadata").fetchall() != [(VERSION,)]:
-                raise IntegrityError("paper-events schema/reducer version mismatch")
+                raise IntegrityError("paper-events schema/reducer version mismatch; preserve this database "
+                                     "unchanged and initialise a separate NEW --db path for v2; no automatic migration")
             db.execute("PRAGMA synchronous=FULL")
         except BaseException:
             db.close()
@@ -458,6 +492,7 @@ class PaperEventStore:
             try:
                 db.execute("BEGIN IMMEDIATE")
                 state, count, prev = self._load(db)
+                self._check_checkpoint(db, count)
                 old = db.execute("SELECT payload_json,event_hash FROM events WHERE event_id=?", (event_id,)).fetchone()
                 if old:
                     if old[0] != text:
@@ -471,7 +506,7 @@ class PaperEventStore:
                     result = self._receipt(state, count + 1, hashed)
                     result.update(duplicate=False, event_id=event_id, recorded_event_hash=hashed)
                 db.execute("COMMIT")
-                return result
+                return self._checkpoint_receipt(result)
             except BaseException:
                 if db.in_transaction:
                     db.execute("ROLLBACK")
@@ -501,10 +536,18 @@ class PaperEventStore:
         with closing(self._connect()) as db:
             db.execute("BEGIN")
             state, count, head = self._load(db)
-            return self._receipt(state, count, head)
+            self._check_checkpoint(db, count)
+            return self._checkpoint_receipt(self._receipt(state, count, head))
+
+    def export_checkpoint(self) -> dict:
+        """Snapshot to preserve externally; exporting does not make it trusted."""
+        result = self.status()
+        return {"format": CHECKPOINT_VERSION, "engine": VERSION,
+                "event_count": result["event_count"], "head_hash": result["head_hash"]}
 
     def verify(self) -> dict:
         result = self.status()
         return {key: result[key] for key in
                 ("ok", "mode", "engine", "live_authorized", "event_count", "head_hash",
-                 "state_sha256", "manual_halt", "quarantine")}
+                 "state_sha256", "manual_halt", "quarantine", "checkpoint_verified",
+                 "checkpoint_event_count", "events_after_checkpoint", "freshness_proven")}

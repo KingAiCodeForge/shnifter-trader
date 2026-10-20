@@ -243,7 +243,8 @@ class ShnifterTableWidget(QWidget):
         
         # Auto-analysis toggle
         self.auto_analysis_checkbox = QCheckBox("Auto LLM Analysis")
-        self.auto_analysis_checkbox.setChecked(True)
+        # Loading a table must not silently start local/remote model requests.
+        self.auto_analysis_checkbox.setChecked(False)
         toolbar_layout.addWidget(self.auto_analysis_checkbox)
         
         # Manual analysis button

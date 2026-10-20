@@ -1,6 +1,6 @@
 """Optional local stdio MCP server; read-only Shnifter research tools.
 
-Requires MCP Python SDK v2: pip install 'mcp>=2,<3'
+Requires MCP Python SDK 1.29+ or v2: pip install 'shnifter-trader[agents]'
 Use Python interpreter of the Shnifter environment in Claude/Codex config.
 Do not expose this stdio process to an untrusted host with file permissions.
 """
@@ -13,7 +13,14 @@ from shnifter_actions import invoke_action
 
 def build_server():
     # Optional dependency; CLI and REST API do not require the MCP SDK.
-    from mcp.server import MCPServer
+    try:
+        from mcp.server import MCPServer
+    except ImportError:
+        try:
+            from mcp.server.fastmcp import FastMCP as MCPServer
+        except ImportError as exc:
+            raise RuntimeError("MCP support requires the optional agents dependency: "
+                               "pip install 'shnifter-trader[agents]'") from exc
 
     server = MCPServer("Shnifter Research — read only")
 
@@ -56,4 +63,9 @@ def build_server():
 
 
 if __name__ == "__main__":
-    build_server().run(transport="stdio")
+    import sys
+    try:
+        build_server().run(transport="stdio")
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1)

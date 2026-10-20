@@ -102,7 +102,12 @@ def _fetch_historical(ticker: str, start: str, end: str):
     JSON/CSV on stdout stays machine-readable.
     """
     with contextlib.redirect_stdout(sys.stderr):
-        from shnifterBB.shnifter_bb import ShnifterBB
+        try:
+            from shnifterBB.shnifter_bb import ShnifterBB
+        except ModuleNotFoundError as exc:
+            if exc.name == 'yfinance':
+                raise RuntimeError("optional market provider missing; install shnifter-trader[market]") from exc
+            raise
 
         return ShnifterBB().equity.price.historical(
             ticker, start_date=start, end_date=end
@@ -246,9 +251,8 @@ def main(
         if args.output is None:
             out.write(document)
         else:
-            mode = "w" if args.overwrite else "x"
-            with args.output.open(mode, encoding="utf-8", newline="") as handle:
-                handle.write(document)
+            from shnifter_safe_output import atomic_write_text
+            atomic_write_text(args.output, document, overwrite=args.overwrite)
             out.write(json.dumps({
                 "ok": True,
                 "action": "market.historical",

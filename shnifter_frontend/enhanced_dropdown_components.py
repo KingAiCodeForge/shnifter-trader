@@ -11,6 +11,8 @@ from PySide6.QtGui import QIcon, QPixmap, QFont
 from typing import List, Dict, Optional, Any
 import json
 import os
+from pathlib import Path
+from shnifter_paths import data_directory
 
 class ShnifterEnhancedDropdown(QComboBox):
     """
@@ -169,7 +171,7 @@ class ShnifterEnhancedDropdown(QComboBox):
         """Save recent items to file"""
         if self.history_file and self.recent_items:
             try:
-                os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
+                Path(self.history_file).parent.mkdir(parents=True, exist_ok=True)
                 with open(self.history_file, 'w') as f:
                     json.dump(self.recent_items, f, indent=2)
             except Exception as e:
@@ -193,7 +195,7 @@ class ShnifterModelSelector(ShnifterEnhancedDropdown):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.set_history_file("data/model_history.json")
+        self.set_history_file(str(data_directory() / "model_history.json"))
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.refresh_models)
         self.refresh_timer.start(30000)  # Refresh every 30 seconds
@@ -256,7 +258,7 @@ class ShnifterTickerSelector(ShnifterEnhancedDropdown):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.set_history_file("data/ticker_history.json")
+        self.set_history_file(str(data_directory() / "ticker_history.json"))
         self.setup_market_groups()
     
     def setup_market_groups(self):
@@ -296,7 +298,7 @@ class ShnifterProviderSelector(ShnifterEnhancedDropdown):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.set_history_file("data/provider_history.json")
+        self.set_history_file(str(data_directory() / "provider_history.json"))
         self.setup_providers()
     
     def setup_providers(self):
